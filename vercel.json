@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/process-apify-dataset.js": {
-      "maxDuration": 900,
+      "maxDuration": 300,
       "memory": 1024
     }
   },
