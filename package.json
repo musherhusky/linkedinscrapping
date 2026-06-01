@@ -1,0 +1,16 @@
+{
+  "name": "hallon-apify-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Backend - Apify + Hallon integration",
+  "main": "api/process-apify-dataset.js",
+  "scripts": {
+    "dev": "node --watch api/process-apify-dataset.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
