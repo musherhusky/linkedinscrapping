@@ -1,15 +1,5 @@
 {
   "version": 2,
-  "env": [
-    "SUPABASE_URL",
-    "SUPABASE_SERVICE_KEY",
-    "APIFY_TOKEN",
-    "APIFY_ACTOR_ID",
-    "HALLON_TOKEN",
-    "HALLON_SID",
-    "HALLON_TEMA_ID",
-    "LOG_LEVEL"
-  ],
   "functions": {
     "api/process-apify-dataset.js": {
       "maxDuration": 900,
