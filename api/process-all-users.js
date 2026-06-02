@@ -1,0 +1,30 @@
+import { getSupabaseClient } from '../lib/supabase.js';
+import { processUser } from '../lib/orchestrator.js';
+
+export default async (req, res) => {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const supabase = getSupabaseClient();
+  const { data: users, error } = await supabase
+    .from('user_settings')
+    .select('user_id')
+    .eq('auto_execution_enabled', true);
+
+  if (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+
+  if (!users || users.length === 0) {
+    return res.status(200).json({ success: true, processed: 0 });
+  }
+
+  const results = [];
+  for (const user of users) {
+    const result = await processUser(user.user_id);
+    results.push(result);
+  }
+
+  return res.status(200).json({ success: true, processed: users.length, results });
+};

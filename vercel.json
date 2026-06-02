@@ -4,12 +4,16 @@
     "api/process-apify-dataset.js": {
       "maxDuration": 300,
       "memory": 1024
+    },
+    "api/process-all-users.js": {
+      "maxDuration": 300,
+      "memory": 1024
     }
   },
   "crons": [
     {
-      "path": "/api/process-apify-dataset?user_id=*",
-      "schedule": "0 8 * * *"
+      "path": "/api/process-all-users",
+      "schedule": "1 23 * * *"
     }
   ]
 }
