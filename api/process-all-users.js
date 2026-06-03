@@ -2,7 +2,7 @@ import { getSupabaseClient } from '../lib/supabase.js';
 import { processUser } from '../lib/orchestrator.js';
 
 export default async (req, res) => {
-  if (req.method !== 'POST') {
+  if (!['GET', 'POST'].includes(req.method)) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
