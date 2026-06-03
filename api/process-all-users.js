@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '../lib/supabase.js';
-import { processUser } from '../lib/orchestrator.js';
+import { processUser, processPeople } from '../lib/orchestrator.js';
 
 export default async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) {
@@ -22,8 +22,11 @@ export default async (req, res) => {
 
   const results = [];
   for (const user of users) {
-    const result = await processUser(user.user_id);
-    results.push(result);
+    const [companiesResult, peopleResult] = await Promise.all([
+      processUser(user.user_id),
+      processPeople(user.user_id),
+    ]);
+    results.push({ userId: user.user_id, companies: companiesResult, people: peopleResult });
   }
 
   return res.status(200).json({ success: true, processed: users.length, results });
