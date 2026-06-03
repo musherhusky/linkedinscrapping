@@ -1,4 +1,4 @@
-import { processUser } from '../lib/orchestrator.js';
+import { processUser, processPeople } from '../lib/orchestrator.js';
 
 export default async (req, res) => {
   if (req.method !== 'POST') {
@@ -11,11 +11,12 @@ export default async (req, res) => {
     return res.status(400).json({ error: 'user_id required' });
   }
 
-  const result = await processUser(userId);
+  const [companiesResult, peopleResult] = await Promise.all([
+    processUser(userId),
+    processPeople(userId),
+  ]);
 
-  if (result.success) {
-    return res.status(200).json(result);
-  } else {
-    return res.status(500).json(result);
-  }
+  const success = companiesResult.success && peopleResult.success;
+
+  return res.status(success ? 200 : 500).json({ companies: companiesResult, people: peopleResult });
 };
