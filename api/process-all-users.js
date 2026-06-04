@@ -6,6 +6,11 @@ export default async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret && req.headers['x-vercel-cron-secret'] !== cronSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
   const supabase = getSupabaseClient();
   const { data: users, error } = await supabase
     .from('user_settings')
