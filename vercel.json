@@ -8,6 +8,10 @@
     "api/process-all-users.js": {
       "maxDuration": 300,
       "memory": 1024
+    },
+    "api/process-analysis.js": {
+      "maxDuration": 300,
+      "memory": 1024
     }
   },
   "crons": [
