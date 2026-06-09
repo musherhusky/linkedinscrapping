@@ -20,33 +20,52 @@ export default async (req, res) => {
 
   // Ejecutar todas las queries en paralelo
   const [
-    { data: resumen },
-    { data: categorias },
-    { data: temas },
-    { data: temasForzados },
-    { data: porFuente },
-    { data: evolucion },
-    { data: postsRicos },
+    categoriasRes,
+    temasRes,
+    temasForzadosRes,
+    porFuenteRes,
+    evolucionRes,
+    postsRicosRes,
   ] = await Promise.all([
-    supabase.rpc('insights_resumen', { p_user_id: userId }).maybeSingle().catch(() => ({ data: null })),
-    supabase.from('post_categories').select('category').eq('user_id', userId),
+    supabase.from('post_categories').select('post_id, category').eq('user_id', userId),
     supabase.from('post_topics').select('topic, forced, confidence').eq('user_id', userId),
     supabase.from('post_topics').select('topic, confidence').eq('user_id', userId).eq('forced', true),
-    supabase.from('post_topics').select('topic, posts(source_type)').eq('user_id', userId),
+    supabase.from('post_topics').select('topic, post_id').eq('user_id', userId),
     supabase.from('post_topics').select('topic, created_at').eq('user_id', userId).gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
-    supabase.from('post_categories').select('post_id, category, posts(titulo, author_name, fecha_post)').eq('user_id', userId).limit(200),
+    supabase.from('post_categories').select('post_id, category').eq('user_id', userId).limit(500),
   ]);
 
+  const categorias = categoriasRes.data || [];
+  const temas = temasRes.data || [];
+  const temasForzados = temasForzadosRes.data || [];
+  const porFuente = porFuenteRes.data || [];
+  const evolucion = evolucionRes.data || [];
+  const postsRicos = postsRicosRes.data || [];
+
+  // Obtener posts para joins manuales
+  const postIds = [...new Set(postsRicos.map(r => r.post_id))].slice(0, 100);
+  const { data: postsData } = postIds.length > 0
+    ? await supabase.from('posts').select('id, titulo, author_name, fecha_post, source_type').in('id', postIds)
+    : { data: [] };
+
+  const postsMap = Object.fromEntries((postsData || []).map(p => [p.id, p]));
+
   // Procesar datos en JS
-  const categoriasCount = countBy(categorias || [], 'category');
-  const temasCount = countBy(temas?.filter(t => !t.forced) || [], 'topic');
-  const forzadosCount = countBy(temasForzados || [], 'topic');
-  const empresasTopics = countBy((porFuente || []).filter(t => t.posts?.source_type === 'company'), 'topic');
-  const personasTopics = countBy((porFuente || []).filter(t => t.posts?.source_type === 'person'), 'topic');
+  const categoriasCount = countBy(categorias, 'category');
+  const temasCount = countBy(temas.filter(t => !t.forced), 'topic');
+  const forzadosCount = countBy(temasForzados, 'topic');
+
+  // Para fuente necesitamos el source_type del post
+  const empresasTopics = countBy(
+    porFuente.filter(t => postsMap[t.post_id]?.source_type === 'company'), 'topic'
+  );
+  const personasTopics = countBy(
+    porFuente.filter(t => postsMap[t.post_id]?.source_type === 'person'), 'topic'
+  );
 
   // Evolución semanal
   const semanas = {};
-  for (const t of evolucion || []) {
+  for (const t of evolucion) {
     const semana = new Date(t.created_at);
     semana.setDate(semana.getDate() - semana.getDay());
     const key = semana.toISOString().split('T')[0];
@@ -55,16 +74,16 @@ export default async (req, res) => {
   }
 
   // Posts más ricos
-  const postsMap = {};
-  for (const r of postsRicos || []) {
-    if (!postsMap[r.post_id]) {
-      postsMap[r.post_id] = { ...r.posts, id: r.post_id, categorias: [] };
+  const postsRicosMap = {};
+  for (const r of postsRicos) {
+    if (!postsRicosMap[r.post_id]) {
+      postsRicosMap[r.post_id] = { ...(postsMap[r.post_id] || {}), id: r.post_id, categorias: [] };
     }
-    postsMap[r.post_id].categorias.push(r.category);
+    postsRicosMap[r.post_id].categorias.push(r.category);
   }
-  const topPosts = Object.values(postsMap).sort((a, b) => b.categorias.length - a.categorias.length).slice(0, 10);
+  const topPosts = Object.values(postsRicosMap).sort((a, b) => b.categorias.length - a.categorias.length).slice(0, 10);
 
-  const totalPosts = (categorias || []).length > 0 ? new Set((categorias || []).map(c => c.post_id)).size : 0;
+  const totalPosts = new Set(categorias.map(c => c.post_id)).size;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(200).send(renderHTML({
