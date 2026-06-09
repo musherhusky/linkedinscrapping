@@ -6,7 +6,8 @@ export default async (req, res) => {
   }
 
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers['x-vercel-cron-secret'] !== cronSecret) {
+  const providedSecret = req.headers['x-vercel-cron-secret'] || req.query.secret;
+  if (cronSecret && providedSecret !== cronSecret) {
     return res.status(401).send('Unauthorized');
   }
 
