@@ -8,12 +8,24 @@
     "api/process-all-users.js": {
       "maxDuration": 300,
       "memory": 1024
+    },
+    "api/process-analysis.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "api/insights.js": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "api/dashboard.js": {
+      "maxDuration": 30,
+      "memory": 512
     }
   },
   "crons": [
     {
       "path": "/api/process-all-users",
-      "schedule": "1 0 * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }

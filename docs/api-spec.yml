@@ -1,0 +1,279 @@
+openapi: 3.0.0
+info:
+  title: LinkedIn Scrapping Backend API
+  description: |
+    Backend API for LinkedIn content monitoring SaaS.
+    All endpoints are Vercel serverless functions.
+    Protected endpoints require the `x-vercel-cron-secret` header
+    (or `?secret=` query param for browser-accessible endpoints).
+  version: 2.0.0
+
+servers:
+  - url: https://linkedinscrapping.vercel.app
+    description: Production (v2)
+
+security:
+  - cronSecret: []
+
+components:
+  securitySchemes:
+    cronSecret:
+      type: apiKey
+      in: header
+      name: x-vercel-cron-secret
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: "userId required"
+
+    UserResult:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        companies:
+          $ref: '#/components/schemas/ProcessResult'
+        people:
+          $ref: '#/components/schemas/ProcessResult'
+
+    ProcessResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        urlCount:
+          type: integer
+        totalPosts:
+          type: integer
+        newPosts:
+          type: integer
+        sent:
+          type: integer
+        duplicates:
+          type: integer
+        failed:
+          type: integer
+        sentToday:
+          type: integer
+        failedToday:
+          type: integer
+
+paths:
+  /api/process-all-users:
+    post:
+      summary: Cron — process all users for current UTC hour
+      description: |
+        Triggered by Vercel cron at 00:00 UTC daily.
+        Detects current UTC hour, finds users with that hour configured in user_sync_hours,
+        deduplicates all their URLs globally, makes one Apify call per type,
+        then distributes results to each user.
+      security:
+        - cronSecret: []
+      responses:
+        '200':
+          description: Batch processed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      hour:
+                        type: integer
+                        description: UTC hour that was processed
+                      processed:
+                        type: integer
+                        description: Number of users processed
+                      results:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserResult'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/process-apify-dataset:
+    post:
+      summary: Process a single user manually
+      description: |
+        Legacy endpoint for manually processing a specific user.
+        Runs full scrape + dedup + Hallon flow for companies and people in parallel.
+      security:
+        - cronSecret: []
+      parameters:
+        - in: query
+          name: user_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User processed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      companies:
+                        $ref: '#/components/schemas/ProcessResult'
+                      people:
+                        $ref: '#/components/schemas/ProcessResult'
+        '401':
+          description: Unauthorized
+
+  /api/process-analysis:
+    post:
+      summary: Run AI analysis on unanalyzed posts for a user
+      description: |
+        Fetches posts without AI analysis for the given user,
+        sends them to Claude in batches of 20,
+        stores categories in post_categories and topics in post_topics.
+        Isolated module — safe to disable or delete independently.
+      security:
+        - cronSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Analysis complete
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      userId:
+                        type: string
+                        format: uuid
+                      analyzed:
+                        type: integer
+                        description: Posts successfully analyzed
+                      skipped:
+                        type: integer
+                        description: Posts that failed analysis
+        '400':
+          description: Missing userId
+        '401':
+          description: Unauthorized
+        '500':
+          description: Internal error
+
+  /api/dashboard:
+    get:
+      summary: HTML dashboard with KPIs and charts
+      description: |
+        Returns an HTML page with:
+        - KPIs: total posts, total reactions, comments, avg engagement
+        - Bar chart: daily activity (posts + reactions)
+        - Trending topics: ranked by weekly volume with delta vs previous week
+        Isolated — safe to delete independently.
+        Secret can be passed as query param for browser access.
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: secret
+          required: false
+          schema:
+            type: string
+          description: Alternative to x-vercel-cron-secret header
+        - in: query
+          name: days
+          required: false
+          schema:
+            type: integer
+            enum: [7, 30, 90]
+            default: 30
+          description: Period for KPIs and activity chart
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Missing userId
+        '401':
+          description: Unauthorized
+
+  /api/insights:
+    get:
+      summary: HTML insights page for AI analysis results
+      description: |
+        Returns an HTML page showing AI analysis results:
+        - Top categories and topics by frequency
+        - Forced topics detection rate
+        - Topics by source type (company vs person)
+        - Weekly topic evolution
+        - Posts richest in categories
+        Isolated — safe to delete independently.
+      parameters:
+        - in: query
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: secret
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Missing userId
+        '401':
+          description: Unauthorized

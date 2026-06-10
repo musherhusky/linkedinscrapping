@@ -6,7 +6,8 @@ export default async (req, res) => {
   }
 
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers['x-vercel-cron-secret'] !== cronSecret) {
+  if (!cronSecret) return res.status(500).json({ error: 'Server misconfiguration' });
+  if (req.headers['x-vercel-cron-secret'] !== cronSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
