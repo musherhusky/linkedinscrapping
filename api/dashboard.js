@@ -1,23 +1,28 @@
 import { getSupabaseClient } from '../lib/supabase.js';
 
+function escapeHtml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export default async (req, res) => {
   if (req.method !== 'GET') {
     return res.status(405).send('Method not allowed');
   }
 
   const cronSecret = process.env.CRON_SECRET;
-  const providedSecret = req.headers['x-vercel-cron-secret'] || req.query.secret;
-  if (cronSecret && providedSecret !== cronSecret) {
+  if (!cronSecret) return res.status(500).json({ error: 'Server misconfiguration' });
+  const providedSecret = req.headers['x-vercel-cron-secret'];
+  if (providedSecret !== cronSecret) {
     return res.status(401).send('Unauthorized');
   }
 
   const userId = req.query.userId;
   if (!userId) {
-    return res.status(400).send('userId requerido. Ejemplo: /api/dashboard?userId=xxx&secret=yyy');
+    return res.status(400).send('userId requerido. Ejemplo: /api/dashboard?userId=xxx');
   }
 
   // Período: últimos 30 días por defecto, o ?days=7|30|90
-  const days = parseInt(req.query.days) || 30;
+  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 365);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -120,6 +125,8 @@ function renderHTML({ userId, days, totalPosts, totalReactions, totalComments, e
     return i % 7 === 0;
   };
 
+  const safeUserId = escapeHtml(userId);
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -165,12 +172,12 @@ function renderHTML({ userId, days, totalPosts, totalReactions, totalComments, e
 </head>
 <body>
   <h1>📈 Dashboard</h1>
-  <p class="subtitle">Usuario: ${userId}</p>
+  <p class="subtitle">Usuario: ${safeUserId}</p>
 
   <div class="period-selector">
-    <a href="?userId=${userId}&secret=${''}&days=7" class="period-btn ${days === 7 ? 'active' : ''}">7 días</a>
-    <a href="?userId=${userId}&secret=${''}&days=30" class="period-btn ${days === 30 ? 'active' : ''}">30 días</a>
-    <a href="?userId=${userId}&secret=${''}&days=90" class="period-btn ${days === 90 ? 'active' : ''}">90 días</a>
+    <a href="?userId=${safeUserId}&days=7" class="period-btn ${days === 7 ? 'active' : ''}">7 días</a>
+    <a href="?userId=${safeUserId}&days=30" class="period-btn ${days === 30 ? 'active' : ''}">30 días</a>
+    <a href="?userId=${safeUserId}&days=90" class="period-btn ${days === 90 ? 'active' : ''}">90 días</a>
   </div>
 
   <!-- KPIs -->
@@ -229,7 +236,7 @@ function renderHTML({ userId, days, totalPosts, totalReactions, totalComments, e
       ? '<p class="empty">Sin datos de temas. Ejecuta primero el análisis de IA.</p>'
       : tendencias.map(t => `
         <div class="tendencia-row">
-          <div class="tendencia-topic">${t.topic}</div>
+          <div class="tendencia-topic">${escapeHtml(t.topic)}</div>
           <div class="tendencia-bar-wrap">
             <div class="tendencia-bar" style="width:${Math.round((t.count / maxTendencia) * 100)}%"></div>
           </div>

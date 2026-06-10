@@ -6,7 +6,8 @@ export default async (req, res) => {
   }
 
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && req.headers['x-vercel-cron-secret'] !== cronSecret) {
+  if (!cronSecret) return res.status(500).json({ error: 'Server misconfiguration' });
+  if (req.headers['x-vercel-cron-secret'] !== cronSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -17,6 +18,7 @@ export default async (req, res) => {
     const result = await processAllUsersBatched(hourUtc);
     return res.status(200).json(result);
   } catch (error) {
-    return res.status(500).json({ success: false, error: error.message });
+    console.error(`processAllUsersBatched error for hour ${hourUtc}: ${error.message}`);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };

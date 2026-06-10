@@ -1,13 +1,18 @@
 import { getSupabaseClient } from '../lib/supabase.js';
 
+function escapeHtml(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export default async (req, res) => {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const cronSecret = process.env.CRON_SECRET;
-  const providedSecret = req.headers['x-vercel-cron-secret'] || req.query.secret;
-  if (cronSecret && providedSecret !== cronSecret) {
+  if (!cronSecret) return res.status(500).json({ error: 'Server misconfiguration' });
+  const providedSecret = req.headers['x-vercel-cron-secret'];
+  if (providedSecret !== cronSecret) {
     return res.status(401).send('Unauthorized');
   }
 
@@ -34,6 +39,8 @@ export default async (req, res) => {
     supabase.from('post_topics').select('topic, created_at').eq('user_id', userId).gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
     supabase.from('post_categories').select('post_id, category').eq('user_id', userId).limit(500),
   ]);
+
+  if (categoriasRes.error) return res.status(500).json({ error: 'Internal server error' });
 
   const categorias = categoriasRes.data || [];
   const temas = temasRes.data || [];
@@ -158,7 +165,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
 </head>
 <body>
   <h1>📊 Insights de Posts</h1>
-  <p class="subtitle">Usuario: ${userId} · ${totalAnalizados} posts analizados</p>
+  <p class="subtitle">Usuario: ${escapeHtml(userId)} · ${totalAnalizados} posts analizados</p>
 
   <div class="grid">
 
@@ -186,7 +193,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
       <h2>Categorías más frecuentes</h2>
       ${categoriasCount.slice(0, 10).map(([cat, count]) => `
         <div class="row">
-          <div class="label">${cat}</div>
+          <div class="label">${escapeHtml(cat)}</div>
           ${bar(count, maxCat, '#6366f1')}
         </div>
       `).join('')}
@@ -197,7 +204,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
       <h2>Temas más frecuentes</h2>
       ${temasCount.slice(0, 10).map(([tema, count]) => `
         <div class="row">
-          <div class="label">${tema}</div>
+          <div class="label">${escapeHtml(tema)}</div>
           ${bar(count, maxTema, '#8b5cf6')}
         </div>
       `).join('')}
@@ -210,7 +217,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
         ? '<p style="color:#94a3b8;font-size:13px">No hay temas forzados configurados</p>'
         : forzadosCount.slice(0, 10).map(([tema, count]) => `
           <div class="row">
-            <div class="label">${tema}</div>
+            <div class="label">${escapeHtml(tema)}</div>
             ${bar(count, maxForzado, '#f59e0b')}
           </div>
         `).join('')}
@@ -221,7 +228,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
       <h2>Temas — Empresas</h2>
       ${empresasTopics.slice(0, 10).map(([tema, count]) => `
         <div class="row">
-          <div class="label">${tema}</div>
+          <div class="label">${escapeHtml(tema)}</div>
           ${bar(count, maxEmpresa, '#0ea5e9')}
         </div>
       `).join('')}
@@ -232,7 +239,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
       <h2>Temas — Personas</h2>
       ${personasTopics.slice(0, 10).map(([tema, count]) => `
         <div class="row">
-          <div class="label">${tema}</div>
+          <div class="label">${escapeHtml(tema)}</div>
           ${bar(count, maxPersona, '#10b981')}
         </div>
       `).join('')}
@@ -246,7 +253,7 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
           <div class="semana-label">${semana}</div>
           <div class="semana-tags">
             ${Object.entries(topics).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([t, c]) =>
-              `<span class="tag">${t} <strong>${c}</strong></span>`
+              `<span class="tag">${escapeHtml(t)} <strong>${c}</strong></span>`
             ).join('')}
           </div>
         </div>
@@ -268,10 +275,10 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
         <tbody>
           ${topPosts.map(p => `
             <tr>
-              <td>${(p.titulo || '').substring(0, 60)}${p.titulo?.length > 60 ? '…' : ''}</td>
-              <td style="color:#64748b">${p.author_name || '-'}</td>
+              <td>${escapeHtml((p.titulo || '').substring(0, 60))}${p.titulo?.length > 60 ? '…' : ''}</td>
+              <td style="color:#64748b">${escapeHtml(p.author_name || '-')}</td>
               <td style="color:#64748b;white-space:nowrap">${p.fecha_post ? new Date(p.fecha_post).toLocaleDateString('es-ES') : '-'}</td>
-              <td>${p.categorias.map(c => `<span class="tag">${c}</span>`).join('')}</td>
+              <td>${p.categorias.map(c => `<span class="tag">${escapeHtml(c)}</span>`).join('')}</td>
             </tr>
           `).join('')}
         </tbody>

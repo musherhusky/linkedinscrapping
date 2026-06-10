@@ -1,0 +1,26 @@
+schema: spec-driven
+
+context: |
+  Tech stack: TypeScript, React, Node.js, Supabase (PostgreSQL), Apify
+  Architecture: Multi-tenant SaaS with scraping pipeline and analytics layer
+  We use conventional commits
+  Domain: LinkedIn content monitoring and intelligence platform
+  Users define target LinkedIn profiles; the system scrapes posts via Apify,
+  aggregates engagement metrics, and surfaces trends and topic/tone analysis.
+  All code, comments, documentation, and technical artifacts must be in English
+
+  Project specs (single source of truth): All artifact creation and implementation MUST follow the project's technical context in ai-specs/. Read and apply these when creating or implementing:
+  - docs/base-standards.md — core principles, TDD, language standards, links to backend/frontend/docs standards
+  - docs/backend-standards.md — API, database, testing, security (backend changes)
+  - docs/frontend-standards.md — React, UI/UX (frontend changes)
+  - docs/api-spec.yml — API contracts and endpoint definitions
+  - docs/data-model.md — domain and data model
+  - docs/documentation-standards.md — docs structure and maintenance
+  For implementation: adopt the relevant agent from ai-specs/agents/ (e.g. backend-developer.md for backend, frontend-developer.md for frontend). Use ai-specs/skills/ for workflow guidance when applicable.
+
+rules:
+  _global:
+    - Before creating any artifact, read and apply docs/base-standards.md
+    - For backend-related artifacts, read docs/backend-standards.md and adopt guidelines from ai-specs/agents/backend-developer.md
+    - For frontend-related artifacts, read docs/frontend-standards.md and adopt guidelines from ai-specs/agents/frontend-developer.md
+    - Use docs/api-spec.yml and docs/data-model.md for API and data consistency in specs and tasks
