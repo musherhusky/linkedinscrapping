@@ -197,8 +197,11 @@ function renderHTML({ userId, days, totalPosts, totalReactions, totalComments, e
     </div>
   </div>
 
+  <!-- Gráficos en 2 columnas -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+
   <!-- Gráfico actividad -->
-  <div class="section">
+  <div class="section" style="margin-bottom:0">
     <h2>Actividad ${days <= 7 ? 'diaria' : 'por día'}</h2>
     ${diasOrdenados.length === 0 ? '<p class="empty">Sin datos en este período</p>' : `
     <div class="chart">
@@ -220,7 +223,7 @@ function renderHTML({ userId, days, totalPosts, totalReactions, totalComments, e
   </div>
 
   <!-- Temas en tendencia -->
-  <div class="section">
+  <div class="section" style="margin-bottom:0">
     <h2>Temas en tendencia — esta semana</h2>
     ${tendencias.length === 0
       ? '<p class="empty">Sin datos de temas. Ejecuta primero el análisis de IA.</p>'
@@ -237,6 +240,8 @@ function renderHTML({ userId, days, totalPosts, totalReactions, totalComments, e
         </div>
       `).join('')}
   </div>
+
+  </div><!-- fin grid 2 columnas -->
 
 </body>
 </html>`;
