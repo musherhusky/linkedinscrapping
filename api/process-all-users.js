@@ -13,8 +13,9 @@ export default async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  // Detectar hora UTC actual (el cron se ejecuta cada hora)
-  const hourUtc = new Date().getUTCHours();
+  // Detectar hora UTC actual; permite override via ?hour= para debug
+  const hourParam = req.query?.hour !== undefined ? parseInt(req.query.hour, 10) : NaN;
+  const hourUtc = !isNaN(hourParam) ? hourParam : new Date().getUTCHours();
 
   try {
     const result = await processAllUsersBatched(hourUtc);
