@@ -23,7 +23,7 @@ User configuration. One row per user.
 ---
 
 ### `target_companies`
-LinkedIn company URLs tracked per user.
+LinkedIn company URLs tracked per user. Enriched with profile metadata on every scrape run.
 
 | Column | Type | Description |
 |---|---|---|
@@ -33,11 +33,15 @@ LinkedIn company URLs tracked per user.
 | name | TEXT | Display name |
 | active | BOOLEAN | Whether included in scraping |
 | created_at | TIMESTAMPTZ | — |
+| linkedin_id | TEXT | LinkedIn internal company ID (from Apify `author.id`) |
+| avatar_url | TEXT | Company logo URL (LinkedIn CDN, may expire) |
+| followers_count | INTEGER | Latest follower count parsed from `author.info` |
+| last_enriched_at | TIMESTAMPTZ | When profile metadata was last updated |
 
 ---
 
 ### `target_people`
-LinkedIn person profile URLs tracked per user.
+LinkedIn person profile URLs tracked per user. Enriched with profile metadata on every scrape run.
 
 | Column | Type | Description |
 |---|---|---|
@@ -47,6 +51,11 @@ LinkedIn person profile URLs tracked per user.
 | name | TEXT | Display name |
 | active | BOOLEAN | Whether included in scraping |
 | created_at | TIMESTAMPTZ | — |
+| linkedin_id | TEXT | LinkedIn internal profile ID (from Apify `author.id`) |
+| avatar_url | TEXT | Profile photo URL (LinkedIn CDN, may expire) |
+| headline | TEXT | Professional headline from `author.info` |
+| website | TEXT | Personal website URL if set |
+| last_enriched_at | TIMESTAMPTZ | When profile metadata was last updated |
 
 ---
 
@@ -247,6 +256,59 @@ Specific topics detected by Claude per post.
 
 ---
 
+## Profile Analytics Tables
+
+### `source_follower_history`
+Daily follower snapshots per tracked URL per user. Used for KPI trend charts.
+
+| Column | Type | Description |
+|---|---|---|
+| id | UUID PK | — |
+| user_id | UUID | References auth.users ON DELETE CASCADE |
+| target_url | TEXT | Tracked URL (matches `target_companies.url` or `target_people.url`) |
+| followers_count | INTEGER | Follower count at scrape time. NULL for person profiles (not available) |
+| scraped_at | TIMESTAMPTZ | When the snapshot was taken |
+
+**Constraint**: `UNIQUE(user_id, target_url, scraped_at::DATE)` — one snapshot per URL per user per calendar day (UTC).
+
+---
+
+### `discovered_profiles`
+Global catalog of LinkedIn profiles discovered as reposters or content mentions. No `user_id` — shared across all users. Read-only from client.
+
+| Column | Type | Description |
+|---|---|---|
+| id | UUID PK | — |
+| linkedin_url | TEXT UNIQUE | Normalized LinkedIn URL (lowercase, no trailing slash) |
+| linkedin_id | TEXT | LinkedIn internal ID |
+| universal_name | TEXT | Company slug (e.g., `banco-santander`) |
+| public_identifier | TEXT | Person slug (e.g., `anabotin`) |
+| name | TEXT | Display name |
+| type | TEXT | `'company'` or `'person'` |
+| headline | TEXT | Company followers string or person headline from `author.info` |
+| avatar_url | TEXT | Profile photo / logo URL (may expire) |
+| first_seen_at | TIMESTAMPTZ | First time this profile was encountered |
+| last_seen_at | TIMESTAMPTZ | Most recent encounter |
+
+---
+
+### `discovered_profile_relations`
+Tracks which tracked source URL (company or person being followed) led to each discovered profile. Enables affinity scoring for future recommendation features.
+
+| Column | Type | Description |
+|---|---|---|
+| id | UUID PK | — |
+| discovered_profile_id | UUID FK | References `discovered_profiles.id` ON DELETE CASCADE |
+| source_url | TEXT | Tracked URL that discovered this profile (loose reference — no FK) |
+| source_type | TEXT | `'reposter'` — profile reposted a post from source_url; `'mention'` — profile was mentioned in content |
+| relation_count | INTEGER | How many times this profile has been seen via this source (incremented atomically) |
+| first_seen_at | TIMESTAMPTZ | First co-occurrence |
+| last_seen_at | TIMESTAMPTZ | Most recent co-occurrence |
+
+**Constraint**: `UNIQUE(discovered_profile_id, source_url, source_type)`.
+
+---
+
 ## Relationships Summary
 
 ```
@@ -262,8 +324,12 @@ auth.users
   │     └── list_items (1:many) → target_companies/people via url
   ├── user_topics (1:many)
   ├── post_categories (1:many) → posts
-  └── post_topics (1:many) → posts
+  ├── post_topics (1:many) → posts
+  └── source_follower_history (1:many)
 
 plans (static catalog)
   └── user_plans → plans via plan_id
+
+discovered_profiles (global catalog — no user_id)
+  └── discovered_profile_relations (1:many) — source_url → target_companies/people.url (loose)
 ```
