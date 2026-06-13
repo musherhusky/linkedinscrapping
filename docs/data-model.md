@@ -72,7 +72,7 @@ Scraped LinkedIn posts. `id` is BIGINT (not UUID).
 | descripcion | TEXT | Full post content |
 | article_source | TEXT | Article subtitle if article type |
 | fecha_post | TIMESTAMPTZ | Original publish date |
-| content_type | TEXT | 'article', 'video', 'document', 'image', 'text' |
+| content_type | text[] | Array of detected types: 'image', 'video', 'document', 'article', 'link', 'repost', 'text'. 'text' only when no other type applies. Query: `content_type @> ARRAY['video']::text[]` |
 | post_type | TEXT | Raw type from Apify |
 | author_name | TEXT | Author display name |
 | author_type | TEXT | Author entity type |
