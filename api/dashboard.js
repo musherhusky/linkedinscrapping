@@ -39,12 +39,12 @@ export default async (req, res) => {
       .order('fecha_post', { ascending: true }),
     supabase
       .from('post_topics')
-      .select('topic')
+      .select('canonical, display')
       .eq('user_id', userId)
       .gte('created_at', weekAgo),
     supabase
       .from('post_topics')
-      .select('topic')
+      .select('canonical, display')
       .eq('user_id', userId)
       .gte('created_at', twoWeeksAgo)
       .lt('created_at', weekAgo),
@@ -88,17 +88,23 @@ export default async (req, res) => {
   // ── Temas en tendencia ──
   const countTopics = (arr) => {
     const map = {};
-    for (const t of arr) map[t.topic] = (map[t.topic] || 0) + 1;
+    for (const t of arr) map[t.canonical] = (map[t.canonical] || 0) + 1;
     return map;
   };
+  // Build a canonical→display map (last seen display wins)
+  const displayMap = {};
+  for (const t of [...topicsThisWeek, ...topicsLastWeek]) {
+    if (t.canonical) displayMap[t.canonical] = t.display;
+  }
   const thisWeekMap = countTopics(topicsThisWeek);
   const lastWeekMap = countTopics(topicsLastWeek);
 
   const tendencias = Object.entries(thisWeekMap)
-    .map(([topic, count]) => ({
-      topic,
+    .map(([canonical, count]) => ({
+      topic: displayMap[canonical] || canonical,
+      canonical,
       count,
-      delta: count - (lastWeekMap[topic] || 0),
+      delta: count - (lastWeekMap[canonical] || 0),
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 15);

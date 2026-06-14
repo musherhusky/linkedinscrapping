@@ -32,12 +32,12 @@ export default async (req, res) => {
     evolucionRes,
     postsRicosRes,
   ] = await Promise.all([
-    supabase.from('post_categories').select('post_id, category').eq('user_id', userId),
-    supabase.from('post_topics').select('topic, forced, confidence').eq('user_id', userId),
-    supabase.from('post_topics').select('topic, confidence').eq('user_id', userId).eq('forced', true),
-    supabase.from('post_topics').select('topic, post_id').eq('user_id', userId),
-    supabase.from('post_topics').select('topic, created_at').eq('user_id', userId).gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
-    supabase.from('post_categories').select('post_id, category').eq('user_id', userId).limit(500),
+    supabase.from('post_categories').select('post_id, display, canonical').eq('user_id', userId),
+    supabase.from('post_topics').select('canonical, display, forced, confidence').eq('user_id', userId),
+    supabase.from('post_topics').select('canonical, display, confidence').eq('user_id', userId).eq('forced', true),
+    supabase.from('post_topics').select('canonical, display, post_id').eq('user_id', userId),
+    supabase.from('post_topics').select('canonical, display, created_at').eq('user_id', userId).gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from('post_categories').select('post_id, display, canonical').eq('user_id', userId).limit(500),
   ]);
 
   if (categoriasRes.error) return res.status(500).json({ error: 'Internal server error' });
@@ -58,16 +58,16 @@ export default async (req, res) => {
   const postsMap = Object.fromEntries((postsData || []).map(p => [p.id, p]));
 
   // Procesar datos en JS
-  const categoriasCount = countBy(categorias, 'category');
-  const temasCount = countBy(temas.filter(t => !t.forced), 'topic');
-  const forzadosCount = countBy(temasForzados, 'topic');
+  const categoriasCount = countBy(categorias, 'canonical');
+  const temasCount = countBy(temas.filter(t => !t.forced), 'canonical');
+  const forzadosCount = countBy(temasForzados, 'canonical');
 
   // Para fuente necesitamos el source_type del post
   const empresasTopics = countBy(
-    porFuente.filter(t => postsMap[t.post_id]?.source_type === 'company'), 'topic'
+    porFuente.filter(t => postsMap[t.post_id]?.source_type === 'company'), 'canonical'
   );
   const personasTopics = countBy(
-    porFuente.filter(t => postsMap[t.post_id]?.source_type === 'person'), 'topic'
+    porFuente.filter(t => postsMap[t.post_id]?.source_type === 'person'), 'canonical'
   );
 
   // Evolución semanal
@@ -77,7 +77,7 @@ export default async (req, res) => {
     semana.setDate(semana.getDate() - semana.getDay());
     const key = semana.toISOString().split('T')[0];
     if (!semanas[key]) semanas[key] = {};
-    semanas[key][t.topic] = (semanas[key][t.topic] || 0) + 1;
+    semanas[key][t.canonical] = (semanas[key][t.canonical] || 0) + 1;
   }
 
   // Posts más ricos
@@ -86,7 +86,7 @@ export default async (req, res) => {
     if (!postsRicosMap[r.post_id]) {
       postsRicosMap[r.post_id] = { ...(postsMap[r.post_id] || {}), id: r.post_id, categorias: [] };
     }
-    postsRicosMap[r.post_id].categorias.push(r.category);
+    postsRicosMap[r.post_id].categorias.push(r.display);
   }
   const topPosts = Object.values(postsRicosMap).sort((a, b) => b.categorias.length - a.categorias.length).slice(0, 10);
 

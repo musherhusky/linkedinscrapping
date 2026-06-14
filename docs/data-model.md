@@ -229,30 +229,36 @@ Topics the user wants force-checked during AI analysis.
 ---
 
 ### `post_categories`
-High-level categories detected by Claude per post.
+High-level categories detected by Claude per post. Stores both the original-language label and an English canonical key for cross-language grouping.
 
 | Column | Type | Description |
 |---|---|---|
 | id | UUID PK | — |
 | post_id | BIGINT | References posts.id ON DELETE CASCADE |
 | user_id | UUID | References auth.users |
-| category | TEXT | e.g. 'Technology', 'Economy' |
+| display | TEXT | Category in the post's original language (e.g. 'Sostenibilidad') — use for UI display |
+| canonical | TEXT | Category always in English (e.g. 'Sustainability') — use for grouping and counting |
 | created_at | TIMESTAMPTZ | — |
+
+Query by canonical: `SELECT canonical, COUNT(*) FROM post_categories GROUP BY canonical`
 
 ---
 
 ### `post_topics`
-Specific topics detected by Claude per post.
+Specific topics detected by Claude per post. Stores both the original-language label and an English canonical key for cross-language grouping.
 
 | Column | Type | Description |
 |---|---|---|
 | id | UUID PK | — |
 | post_id | BIGINT | References posts.id ON DELETE CASCADE |
 | user_id | UUID | References auth.users |
-| topic | TEXT | e.g. 'Artificial Intelligence' |
+| display | TEXT | Topic in the post's original language (e.g. 'Inteligencia Artificial') — use for UI display |
+| canonical | TEXT | Topic always in English (e.g. 'Artificial Intelligence') — use for grouping and counting |
 | forced | BOOLEAN | true if came from user_topics |
 | confidence | TEXT | 'high', 'medium', 'low' |
 | created_at | TIMESTAMPTZ | — |
+
+Query by canonical: `SELECT canonical, COUNT(*) FROM post_topics GROUP BY canonical`
 
 ---
 
