@@ -40,3 +40,47 @@ test('savePost content_type mapping: array value is truthy and passes || null gu
   const mapped = contentType || null;
   assert.deepEqual(mapped, ['image', 'link'], 'non-empty array must not be replaced by null');
 });
+
+test('mapPost returns the LinkedIn permalink as url when post shares an article', () => {
+  const item = {
+    linkedinUrl: 'https://www.linkedin.com/feed/update/urn:li:activity:789',
+    article: { link: 'https://example.com/blog-post', title: 'A blog post', subtitle: 'example.com' },
+    content: 'Check this out',
+    postedAt: { date: '2026-06-13T10:00:00Z' },
+    author: { name: 'Test Co', type: 'company', publicIdentifier: 'test-co' },
+    engagement: { likes: 0, comments: 0, shares: 0, reactions: [] },
+  };
+
+  const post = mapPost(item, 'company');
+
+  assert.equal(post.url, 'https://www.linkedin.com/feed/update/urn:li:activity:789');
+});
+
+test('mapPost returns the article link as articleUrl when an article is present', () => {
+  const item = {
+    linkedinUrl: 'https://www.linkedin.com/feed/update/urn:li:activity:789',
+    article: { link: 'https://example.com/blog-post', title: 'A blog post', subtitle: 'example.com' },
+    content: 'Check this out',
+    postedAt: { date: '2026-06-13T10:00:00Z' },
+    author: { name: 'Test Co', type: 'company', publicIdentifier: 'test-co' },
+    engagement: { likes: 0, comments: 0, shares: 0, reactions: [] },
+  };
+
+  const post = mapPost(item, 'company');
+
+  assert.equal(post.articleUrl, 'https://example.com/blog-post');
+});
+
+test('mapPost returns articleUrl null when there is no article', () => {
+  const item = {
+    linkedinUrl: 'https://www.linkedin.com/feed/update/urn:li:activity:456',
+    content: 'Just sharing a thought today.',
+    postedAt: { date: '2026-06-13T09:00:00Z' },
+    author: { name: 'Someone', type: 'person', publicIdentifier: 'someone' },
+    engagement: { likes: 1, comments: 0, shares: 0, reactions: [] },
+  };
+
+  const post = mapPost(item, 'person');
+
+  assert.equal(post.articleUrl, null);
+});

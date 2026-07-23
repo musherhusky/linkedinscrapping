@@ -66,11 +66,12 @@ Scraped LinkedIn posts. `id` is BIGINT (not UUID).
 |---|---|---|
 | id | BIGINT PK | Auto-increment |
 | user_id | UUID | References auth.users |
-| url | TEXT | Canonical post URL (dedup key) |
+| url | TEXT | LinkedIn post URL (always the permalink, dedup key) |
 | linkedin_url | TEXT | LinkedIn post URL |
 | titulo | TEXT | Post title or first 200 chars |
 | descripcion | TEXT | Full post content |
 | article_source | TEXT | Article subtitle if article type |
+| article_url | TEXT | External article link when post shares an article; NULL otherwise |
 | fecha_post | TIMESTAMPTZ | Original publish date |
 | content_type | text[] | Array of detected types: 'image', 'video', 'document', 'article', 'link', 'repost', 'text'. 'text' only when no other type applies. Query: `content_type @> ARRAY['video']::text[]` |
 | post_type | TEXT | Raw type from Apify |
