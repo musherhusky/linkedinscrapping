@@ -51,4 +51,4 @@
 
 ## 9. Commit
 
-- [ ] 9.1 Commit the code, migration, spec, and doc changes with a conventional commit message
+- [x] 9.1 Commit the code, migration, spec, and doc changes with a conventional commit message (commit `d35d803`)
