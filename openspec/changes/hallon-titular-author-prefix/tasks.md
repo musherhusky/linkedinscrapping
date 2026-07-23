@@ -53,4 +53,4 @@
 
 ## 9. Commit
 
-- [ ] 9.1 Commit the code, spec, and doc changes with a conventional commit message
+- [x] 9.1 Commit the code, spec, and doc changes with a conventional commit message (commit `f015261`)
