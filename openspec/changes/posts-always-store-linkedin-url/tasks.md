@@ -21,7 +21,7 @@
 ## 3. Database: Schema Migration
 
 - [x] 3.1 Create `docs/migrations/add_posts_article_url.sql` with `ALTER TABLE posts ADD COLUMN article_url TEXT;`
-- [ ] 3.2 Coordinate with the user to apply the migration against the live Supabase project (agent has no direct Supabase admin access in this environment; confirm before any production schema change) — user confirmed they will apply `docs/migrations/add_posts_article_url.sql` themselves; pending their execution
+- [x] 3.2 Coordinate with the user to apply the migration against the live Supabase project (agent has no direct Supabase admin access in this environment; confirm before any production schema change) — user applied `docs/migrations/add_posts_article_url.sql` and confirmed the fix works correctly against production data
 
 ## 4. Documentation
 
