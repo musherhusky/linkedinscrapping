@@ -59,7 +59,7 @@ LinkedIn person profile URLs tracked per user. Enriched with profile metadata on
 
 ---
 
-### `target_terms`
+### `target_search_terms`
 Free-text LinkedIn search terms tracked per user. Unlike `target_companies`/`target_people`, a term has no single tracked profile and is not enriched with profile metadata.
 
 | Column | Type | Description |
@@ -338,7 +338,7 @@ auth.users
   ├── user_sync_hours (1:many)
   ├── target_companies (1:many)
   ├── target_people (1:many)
-  ├── target_terms (1:many)
+  ├── target_search_terms (1:many)
   ├── posts (1:many)
   ├── activity_log (1:many)
   ├── lists (1:many)

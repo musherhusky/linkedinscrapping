@@ -20,7 +20,7 @@
 
 ## 3. Backend: Implementation — `getActiveTerms`
 
-- [x] 3.1 In `lib/database.js`, add `getActiveTerms(userId, supabase = getSupabaseClient())` querying `target_terms` for `active = true` rows belonging to the user, returning the `term` values — same query structure as `getActiveCompanies`/`getActivePeople`, with the added injectable `supabase` param for testability
+- [x] 3.1 In `lib/database.js`, add `getActiveTerms(userId, supabase = getSupabaseClient())` querying `target_search_terms` for `active = true` rows belonging to the user, returning the `term` values — same query structure as `getActiveCompanies`/`getActivePeople`, with the added injectable `supabase` param for testability
 - [x] 3.2 Run the tests from Section 2 and confirm they pass (green)
 
 ## 4. Backend: Failing Tests First (TDD) — `executeTermsActor`
@@ -62,7 +62,7 @@
 
 - [x] 8.1 Add `APIFY_TERMS_ACTOR_ID` to `.env.example` (value for reference, not committed as a real secret: `buIWk2uOUzTmcLsuB`)
 - [ ] 8.2 Coordinate with the user to set `APIFY_TERMS_ACTOR_ID=buIWk2uOUzTmcLsuB` in the live Vercel environment variables (agent has no direct Vercel admin access)
-- [x] 8.3 Update `docs/data-model.md`: document `target_terms` table (columns: `id`, `user_id`, `term`, `active`, `created_at`) and extend `posts.source_type` description to `'company', 'person', or 'term'`
+- [x] 8.3 Update `docs/data-model.md`: document `target_search_terms` table (columns: `id`, `user_id`, `term`, `active`, `created_at`) and extend `posts.source_type` description to `'company', 'person', or 'term'`
 - [x] 8.4 Update `docs/backend-standards.md` section 4 (Apify Integration) to list the third actor (`APIFY_TERMS_ACTOR_ID`) and the `executeTermsActor` function alongside the existing two
 
 ## 9. Backend: Review and Update Existing Unit Tests (MANDATORY)
@@ -98,3 +98,13 @@
 - [x] 14.1 Update `api/process-apify-dataset.js` to also call `processTerms(userId)` in parallel with `processUser`/`processPeople`, and include `terms` in the JSON response
 - [x] 14.2 Run the full unit suite to confirm no regressions
 - [x] 14.3 Commit and ship the fix (this change was already merged to `main`, so this is a follow-up commit/PR, not an amendment)
+
+## 15. Backend: Correct the real table name (found post-merge)
+
+**Gap found**: after fixing Section 14, a manual run returned `"terms":{"success":false,"error":"Could not find the table 'public.target_terms' in the schema cache"}`. During planning the user confirmed the table name as `target_terms` (via clarifying question), but the table actually created in Supabase is named `target_search_terms`. All references to `target_terms` in code, tests, and docs were renamed accordingly.
+
+- [x] 15.1 Update `lib/database.js` `getActiveTerms()` to query `.from('target_search_terms')` instead of `.from('target_terms')`
+- [x] 15.2 Update `tests/unit/getActiveTerms.test.js`'s fake Supabase client assertion to expect `target_search_terms`
+- [x] 15.3 Update `docs/data-model.md`, `design.md`, `specs/target-terms-scraping/spec.md`, `proposal.md`, and this `tasks.md` file to reference `target_search_terms` instead of `target_terms`
+- [x] 15.4 Run the full unit suite to confirm no regressions
+- [x] 15.5 Commit and ship the fix
