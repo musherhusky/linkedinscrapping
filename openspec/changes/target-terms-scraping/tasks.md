@@ -108,3 +108,11 @@
 - [x] 15.3 Update `docs/data-model.md`, `design.md`, `specs/target-terms-scraping/spec.md`, `proposal.md`, and this `tasks.md` file to reference `target_search_terms` instead of `target_terms`
 - [x] 15.4 Run the full unit suite to confirm no regressions
 - [x] 15.5 Commit and ship the fix
+
+## 16. Database: Allow 'term' in the posts.source_type check constraint (found post-merge)
+
+**Gap found**: after fixing Section 15, a manual run returned `terms: { success: true, newPosts: 5, sent: 0, failed: 5 }`. Querying `activity_log` (`error_message`) surfaced the real cause: `new row for relation "posts" violates check constraint "posts_source_type_check"`. The production `posts` table has a check constraint restricting `source_type` to `'company'`/`'person'` only — this wasn't visible from `docs/data-model.md` (which just says `TEXT`) or from the OpenSpec proposal's assumption that "`posts` spec doesn't constrain `source_type` to a fixed enum" (true of the *spec*, not true of the *live database schema*, which the agent has no direct access to inspect).
+
+- [x] 16.1 Create `docs/migrations/allow_term_source_type.sql`: drop and recreate `posts_source_type_check` to allow `'company', 'person', 'term'`
+- [ ] 16.2 Coordinate with the user to apply `docs/migrations/allow_term_source_type.sql` against the live Supabase project (agent has no direct Supabase admin/SQL access) and confirm a manual run now succeeds (`terms.sent` > 0, `terms.failed` = 0)
+- [x] 16.3 Note for future changes: any new `source_type`-like value must be checked against live DB constraints, not just the OpenSpec `posts` capability spec, since constraints can exist in the database without being mirrored in the spec
