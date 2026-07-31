@@ -5,7 +5,7 @@ import { getActiveTerms } from '../../lib/database.js';
 function makeFakeSupabaseClient(rows) {
   return {
     from(table) {
-      assert.equal(table, 'target_terms');
+      assert.equal(table, 'target_search_terms');
       return {
         select(columns) {
           assert.equal(columns, 'term');

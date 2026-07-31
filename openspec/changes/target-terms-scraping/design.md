@@ -6,7 +6,7 @@ The scraping pipeline currently has two parallel tracks that share the same shap
 
 `processAllUsersBatched(hourUtc)` runs this once per cron hour across *all* users scheduled for that hour: it gathers every active URL across users, deduplicates URLs globally, calls each Apify actor exactly once for the whole batch, then re-distributes the returned posts back to the user(s) that track each URL (`distributeAndProcess`).
 
-A third table, `target_terms` (`id`, `user_id`, `term`, `active`, `created_at`), now exists for users to track free-text search terms instead of profile URLs. This design adds a third track — terms — that mirrors the company/person shape as closely as the underlying data allows.
+A third table, `target_search_terms` (`id`, `user_id`, `term`, `active`, `created_at`), now exists for users to track free-text search terms instead of profile URLs. This design adds a third track — terms — that mirrors the company/person shape as closely as the underlying data allows.
 
 The key structural difference: companies/people are *tracked profiles* — every scraped post has a `query.targetUrl` that matches exactly one row the user configured, and profile metadata (followers, avatar, headline) is enriched back onto that same tracked entity. A search term has no such 1:1 "profile" — a term search returns posts from arbitrary, previously-unknown authors. So term-sourced posts flow through the same dedupe/dispatch pipeline, but do **not** participate in target-profile enrichment (`enrichProfilesFromBatch`).
 
@@ -20,7 +20,7 @@ The key structural difference: companies/people are *tracked profiles* — every
 **Non-Goals:**
 - Determining or hardcoding the specific Apify actor used for term/keyword search — the actor ID comes from a new env var (`APIFY_TERMS_ACTOR_ID`); its exact input schema is confirmed during implementation against the actor's documentation/test run, not assumed here.
 - Target-profile enrichment (follower counts, avatar, headline) for term results — terms have no single "owning" profile to enrich.
-- Any UI/API work to create/manage `target_terms` rows — the table already exists; this change only covers the scraping/dispatch side.
+- Any UI/API work to create/manage `target_search_terms` rows — the table already exists; this change only covers the scraping/dispatch side.
 
 ## Decisions
 
@@ -86,9 +86,9 @@ function buildTermsActorInput(terms, settings) {
 
 ## Migration Plan
 
-1. Confirm `target_terms` table already exists in Supabase (per user) — no migration needed for the table itself.
+1. Confirm `target_search_terms` table already exists in Supabase (per user) — no migration needed for the table itself.
 2. Add `APIFY_TERMS_ACTOR_ID` to environment configuration (`.env.example`, Vercel env vars) before merging.
-3. Ship `getActiveTerms` + `executeTermsActor` + orchestrator wiring behind normal deploy — no feature flag, since `target_terms` starts empty for all users (zero active terms ⇒ zero behavior change, mirroring how `getActiveCompanies`/`getActivePeople` returning `[]` already short-circuits the pipeline).
+3. Ship `getActiveTerms` + `executeTermsActor` + orchestrator wiring behind normal deploy — no feature flag, since `target_search_terms` starts empty for all users (zero active terms ⇒ zero behavior change, mirroring how `getActiveCompanies`/`getActivePeople` returning `[]` already short-circuits the pipeline).
 4. Rollback: revert the deploy; no destructive schema change is introduced.
 
 ## Open Questions

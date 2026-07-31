@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: Active search terms are fetched per user
-The system SHALL provide `getActiveTerms(userId)`, which returns the list of active `term` values from `target_terms` for the given user, following the same active-row filtering as `getActiveCompanies` and `getActivePeople`.
+The system SHALL provide `getActiveTerms(userId)`, which returns the list of active `term` values from `target_search_terms` for the given user, following the same active-row filtering as `getActiveCompanies` and `getActivePeople`.
 
 #### Scenario: User has active terms
-- **WHEN** `getActiveTerms(userId)` is called and `target_terms` has rows for that user with `active = true`
+- **WHEN** `getActiveTerms(userId)` is called and `target_search_terms` has rows for that user with `active = true`
 - **THEN** the function returns an array containing each row's `term` value
 
 #### Scenario: User has no active terms
-- **WHEN** `getActiveTerms(userId)` is called and the user has no rows with `active = true` in `target_terms`
+- **WHEN** `getActiveTerms(userId)` is called and the user has no rows with `active = true` in `target_search_terms`
 - **THEN** the function returns an empty array
 
 ### Requirement: Search terms are sent to a dedicated Apify actor
