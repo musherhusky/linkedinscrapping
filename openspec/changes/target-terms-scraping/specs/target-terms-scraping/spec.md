@@ -74,3 +74,14 @@ Posts sourced from a search term SHALL NOT be included in target-profile enrichm
 #### Scenario: Term batch does not enrich profiles
 - **WHEN** `processAllUsersBatched(hourUtc)` processes a batch that includes term-sourced posts
 - **THEN** `upsertTargetProfile` and `insertFollowerHistory` are not called for any term-sourced post's author
+
+### Requirement: Term-sourced posts record which search term produced them
+The `posts` table SHALL have a `search_term TEXT` column. `savePost()` SHALL set it to the search term that produced the post when `sourceType = 'term'`, and to `NULL` for company/person posts.
+
+#### Scenario: Term-sourced post records its search term
+- **WHEN** `savePost()` persists a post with `sourceType = 'term'` and `post.queryTargetUrl = 'Vidrala'`
+- **THEN** `posts.search_term` is stored as `'Vidrala'`
+
+#### Scenario: Company/person posts leave search_term null
+- **WHEN** `savePost()` persists a post with `sourceType = 'company'` or `sourceType = 'person'`
+- **THEN** `posts.search_term` is stored as `NULL`
