@@ -74,6 +74,16 @@ function buildTermsActorInput(terms, settings) {
 
 `mapDiscoveredProfiles` (reposter/mention discovery) is independent of that map — it keys only on `item.query?.targetUrl` as a loose `source_url` text with no FK. Term-sourced posts flow through it unchanged, using the term string as `source_url`. This is consistent with `discovered_profile_relations.source_url` already being documented as a loose, unconstrained reference.
 
+### 4a. Relevance filter for term-search results (found post-merge)
+
+**Problem observed in production**: the `harvestapi/linkedin-post-search` actor, when it finds few or no strong matches for a query, backfills the result set with other content LinkedIn considers "interesting" that does not actually contain the search term. The user does not want these — only posts that genuinely mention the searched term should be sent to Hallon.
+
+**Decision**: in `executeTermsActor`, after the actor run returns raw items and before mapping them with `mapPost`, filter out any item where the term that produced it (`item.query?.search`) does not appear, case-insensitively, in any of: `item.content`, `item.article?.title`, `item.article?.description`, `item.repost?.content`. This uses a new module-private pure function (e.g. `itemMatchesSearchTerm(item, term)`) in `lib/apify.js`, scoped only to `executeTermsActor` — company/person results are unaffected, since Apify's targeted-URL actors don't have this "backfill with unrelated content" behavior (they scrape a specific profile's own posts, not a keyword search).
+
+If the term is missing/empty (defensive — shouldn't happen given `buildTermsActorInput` always sends non-empty terms), the item is kept rather than dropped, to fail open rather than silently discarding valid data due to an unexpected shape.
+
+**Alternative considered**: filtering at the `mapPost`/orchestrator level using the already-mapped post's `title`/`description`. Rejected — by the time `mapPost` runs, the repost-vs-original distinction has already been flattened into `title`/`description` in a way that loses the raw `article.title`/`article.description`/`repost.content` structure the user explicitly wants checked; filtering on the raw Apify item is more precise and keeps the concern isolated to `executeTermsActor`, not spread across the shared `mapPost` used by all three source types.
+
 ### 4. Batching and settings
 
 `processAllUsersBatched` gains a third parallel array, `allTermsAll` (deduplicated across users the same way `allCompanyUrls`/`allPeopleUrls` are), and a third `Promise.all` branch calling `executeTermsActor` when `allTerms.length > 0`. The existing `apifyEnabledUser` / `postedLimit` logic is reused unchanged — terms are gated by the same `settings.apify_enabled` flag as companies/people (no separate toggle).

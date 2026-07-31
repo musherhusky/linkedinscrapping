@@ -114,5 +114,16 @@
 **Gap found**: after fixing Section 15, a manual run returned `terms: { success: true, newPosts: 5, sent: 0, failed: 5 }`. Querying `activity_log` (`error_message`) surfaced the real cause: `new row for relation "posts" violates check constraint "posts_source_type_check"`. The production `posts` table has a check constraint restricting `source_type` to `'company'`/`'person'` only — this wasn't visible from `docs/data-model.md` (which just says `TEXT`) or from the OpenSpec proposal's assumption that "`posts` spec doesn't constrain `source_type` to a fixed enum" (true of the *spec*, not true of the *live database schema*, which the agent has no direct access to inspect).
 
 - [x] 16.1 Create `docs/migrations/allow_term_source_type.sql`: drop and recreate `posts_source_type_check` to allow `'company', 'person', 'term'`
-- [ ] 16.2 Coordinate with the user to apply `docs/migrations/allow_term_source_type.sql` against the live Supabase project (agent has no direct Supabase admin/SQL access) and confirm a manual run now succeeds (`terms.sent` > 0, `terms.failed` = 0)
+- [ ] 16.2 Coordinate with the user to apply `docs/migrations/allow_term_source_type.sql` against the live Supabase project (agent has no direct Supabase admin/SQL access) and confirm a manual run now succeeds (`terms.sent` > 0, `terms.failed` = 0) — still failing with the same error as of the last manual run; user is verifying the live constraint definition
 - [x] 16.3 Note for future changes: any new `source_type`-like value must be checked against live DB constraints, not just the OpenSpec `posts` capability spec, since constraints can exist in the database without being mirrored in the spec
+
+## 17. Backend: Filter term-search results to actual term matches (found post-merge, user request)
+
+**Problem reported by user**: the Apify term-search actor sometimes returns posts that don't actually contain the searched term — it backfills with other "interesting" content when it finds few/no strong matches. The user only wants posts where the term genuinely appears in `content`, `article.title`, `article.description`, or `repost.content` (case-insensitive). This filter must apply only to term-search results, not company/person.
+
+- [x] 17.1 Add failing tests in `tests/unit/executeTermsActor.test.js` asserting `executeTermsActor` discards raw items where the term (`item.query.search`) doesn't case-insensitively appear in any of `content`/`article.title`/`article.description`/`repost.content`, and keeps items where it does (covering each of the four fields individually, plus a case-insensitivity check)
+- [x] 17.2 Run the new tests and confirm they fail (red) — confirmed: the "discards unrelated item" test failed (`1 !== 0`) before the filter existed
+- [x] 17.3 In `lib/apify.js`, add a module-private `itemMatchesSearchTerm(item, term)` pure function per `design.md` Decision 4a, and apply it as a filter in `executeTermsActor` between `runActor` and `mapPost`
+- [x] 17.4 Run the tests from 17.1 and confirm they pass (green) — 9/9 passed
+- [x] 17.5 Run the full unit suite to confirm no regressions — 49/49 passed
+- [x] 17.6 Commit and ship the fix
