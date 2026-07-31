@@ -113,16 +113,18 @@ const { error } = await supabase
 
 ## 4. Apify Integration
 
-Two actors configured via env vars:
+Three actors configured via env vars:
 - `APIFY_ACTOR_ID` — scrapes company LinkedIn pages
 - `APIFY_PEOPLE_ACTOR_ID` — scrapes person LinkedIn profiles
+- `APIFY_TERMS_ACTOR_ID` — searches LinkedIn posts by free-text term (`harvestapi/linkedin-post-search`); input uses `searchQueries`, not `targetUrls`
 
 ```js
-import { executeActor, executePeopleActor } from './apify.js';
+import { executeActor, executePeopleActor, executeTermsActor } from './apify.js';
 
-// Both accept: (urlsArray, settingsObject)
+// All three accept: (itemsArray, settingsObject)
 const posts = await executeActor(companyUrls, settings);
 const peoplePosts = await executePeopleActor(peopleUrls, settings);
+const termPosts = await executeTermsActor(searchTerms, settings);
 ```
 
 `settings` must include:

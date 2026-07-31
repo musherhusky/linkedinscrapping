@@ -84,3 +84,33 @@ test('mapPost returns articleUrl null when there is no article', () => {
 
   assert.equal(post.articleUrl, null);
 });
+
+test('mapPost falls back to query.search for queryTargetUrl on term-search results', () => {
+  const item = {
+    linkedinUrl: 'https://www.linkedin.com/posts/example_activity-1',
+    content: 'A post about Vidrala',
+    postedAt: { date: '2026-07-30T14:53:15.718Z' },
+    author: { name: 'Someone', type: 'company', publicIdentifier: 'someone' },
+    engagement: { likes: 1, comments: 0, shares: 0, reactions: [] },
+    query: { sortBy: 'date', page: 1, search: 'Vidrala', postedLimit: '24h' },
+  };
+
+  const post = mapPost(item, 'term');
+
+  assert.equal(post.queryTargetUrl, 'Vidrala');
+});
+
+test('mapPost prefers query.targetUrl over query.search when both are present', () => {
+  const item = {
+    linkedinUrl: 'https://www.linkedin.com/feed/update/urn:li:activity:1',
+    content: 'A post',
+    postedAt: { date: '2026-07-30T14:53:15.718Z' },
+    author: { name: 'Someone', type: 'company', publicIdentifier: 'someone' },
+    engagement: { likes: 1, comments: 0, shares: 0, reactions: [] },
+    query: { targetUrl: 'https://www.linkedin.com/company/acme', search: 'Vidrala' },
+  };
+
+  const post = mapPost(item, 'company');
+
+  assert.equal(post.queryTargetUrl, 'https://www.linkedin.com/company/acme');
+});
