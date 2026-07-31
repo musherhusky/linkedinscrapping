@@ -22,7 +22,6 @@ Users can currently track LinkedIn companies and people, and every scrape run pu
 ## Impact
 
 - **Database**: new `target_terms` table (already created by the user); `posts.source_type` gains a third valid value, `'term'`.
-- **Code**: `lib/database.js`, `lib/apify.js`, `lib/orchestrator.js` — new functions added alongside existing company/person equivalents, no existing function signatures change.
+- **Code**: `lib/database.js`, `lib/apify.js`, `lib/orchestrator.js` — new functions added alongside existing company/person equivalents, no existing function signatures change. `api/process-apify-dataset.js` (the per-user, on-demand endpoint — not the cron path, which is `api/process-all-users.js`) also calls `processTerms(userId)` alongside `processUser`/`processPeople`, so a manual run returns `terms` in its response too.
 - **Config/env**: new required env var `APIFY_TERMS_ACTOR_ID` when term tracking is enabled for any user.
 - **Tests**: new unit tests for `getActiveTerms`, `executeTermsActor`, and orchestrator batching/distribution of term posts, following the existing test patterns in `tests/unit/`.
-- **Open question carried into design.md**: the exact input/output shape of the Apify actor used for term search (e.g. whether `item.query.targetUrl` is populated with the search term, or a different field is used to correlate results back to the originating term) is not yet confirmed and needs to be resolved before implementation.

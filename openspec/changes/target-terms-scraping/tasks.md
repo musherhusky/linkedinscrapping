@@ -90,3 +90,11 @@
 ## 13. Commit
 
 - [x] 13.1 Commit the code, spec, and doc changes with a conventional commit message
+
+## 14. Backend: Wire terms into the per-user manual endpoint (found post-merge)
+
+**Gap found**: `api/process-apify-dataset.js` is a per-user, on-demand endpoint (not the cron path — `vercel.json` only schedules `/api/process-all-users`, which correctly uses `processAllUsersBatched`) that calls `processUser`/`processPeople` directly but was never updated to also call `processTerms`. The user ran it manually after deploy and got a response with only `companies`/`people` keys, no `terms`. This endpoint wasn't in scope during planning because `api/` wasn't searched at proposal time.
+
+- [x] 14.1 Update `api/process-apify-dataset.js` to also call `processTerms(userId)` in parallel with `processUser`/`processPeople`, and include `terms` in the JSON response
+- [x] 14.2 Run the full unit suite to confirm no regressions
+- [x] 14.3 Commit and ship the fix (this change was already merged to `main`, so this is a follow-up commit/PR, not an amendment)
