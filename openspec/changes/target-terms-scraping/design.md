@@ -88,6 +88,14 @@ If the term is missing/empty (defensive — shouldn't happen given `buildTermsAc
 
 `processAllUsersBatched` gains a third parallel array, `allTermsAll` (deduplicated across users the same way `allCompanyUrls`/`allPeopleUrls` are), and a third `Promise.all` branch calling `executeTermsActor` when `allTerms.length > 0`. The existing `apifyEnabledUser` / `postedLimit` logic is reused unchanged — terms are gated by the same `settings.apify_enabled` flag as companies/people (no separate toggle).
 
+### 4b. Persist which term produced a term-sourced post (found post-merge, user request)
+
+**Problem**: for company/person posts, "where did this come from" is implicit — the frontend's company/person tag is `posts.source_type`, and the tracked entity is the post's own author. For term-sourced posts, the author is an arbitrary third party, not the term itself, so nothing in `posts` currently records which search term produced a given row. The user needs this to display/filter term-sourced posts by their originating term in the frontend.
+
+**Decision**: add a `posts.search_term TEXT` column (migration `docs/migrations/add_posts_search_term.sql`), `NULL` for company/person posts. `savePost()` in `lib/database.js` sets it via `sourceType === 'term' ? (post.queryTargetUrl || null) : null` — reusing the `queryTargetUrl` field `mapPost()` already computes (which holds the term string for term-sourced posts per Decision 1's `query.search` fallback), rather than threading a new field through `mapPost`/the orchestrator.
+
+**Alternative considered**: a separate join table (`post_search_terms`) linking posts to `target_search_terms.id`. Rejected as overkill — a term is a plain string per user, not an entity with its own metadata worth normalizing, and a single nullable column matches how `posts.author_id` etc. already denormalize source info directly onto the row.
+
 ## Risks / Trade-offs
 
 - **[Search terms can return posts from authors the user never explicitly tracks]** → This is intended behavior (that's the point of term search), but downstream consumers assuming `posts.author_id` always maps to a `target_companies`/`target_people` row (e.g. `list_items` filtering, per `data-model.md`) will simply not match term-sourced posts, which is correct — they're not part of any list.

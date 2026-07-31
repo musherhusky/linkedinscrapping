@@ -106,6 +106,7 @@ Scraped LinkedIn posts. `id` is BIGINT (not UUID).
 | reactions_interest | INTEGER | INTEREST reaction count |
 | reactions_entertainment | INTEGER | ENTERTAINMENT reaction count |
 | source_type | TEXT | 'company', 'person', or 'term' |
+| search_term | TEXT | Search term that produced this post when source_type = 'term'; NULL otherwise |
 | external_id | TEXT | Hallon dispatch ID |
 | dispatch_response | JSONB | Full Hallon response |
 | status | TEXT | 'sent', 'extracted', 'failed' |
