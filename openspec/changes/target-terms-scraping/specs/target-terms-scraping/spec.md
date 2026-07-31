@@ -23,6 +23,29 @@ The system SHALL provide `executeTermsActor(terms, settings)` in `lib/apify.js`,
 - **WHEN** `executeTermsActor` is called and `APIFY_TERMS_ACTOR_ID` or `APIFY_TOKEN` is not set
 - **THEN** the function throws an error identifying the missing configuration, without calling the Apify API
 
+### Requirement: Term-search results are filtered to those actually containing the search term
+The `harvestapi/linkedin-post-search` actor may backfill results with unrelated content it considers "interesting" when few or no strong matches exist for a query. `executeTermsActor` SHALL discard any item where the search term that produced it (`item.query.search`) does not appear, case-insensitively, in at least one of: `item.content`, `item.article.title`, `item.article.description`, or `item.repost.content`. This filtering SHALL apply only to term-search results — not to company/person results.
+
+#### Scenario: Item contains the search term in its content
+- **WHEN** a raw item has `content: "Great news from Vidrala today"` and `query.search: "Vidrala"`
+- **THEN** the item is kept and mapped into the returned posts
+
+#### Scenario: Item does not contain the search term anywhere
+- **WHEN** a raw item has `content: "Unrelated post"`, no `article`, no `repost`, and `query.search: "Vidrala"`
+- **THEN** the item is discarded and does not appear in the returned posts
+
+#### Scenario: Search term only appears in the article title
+- **WHEN** a raw item has `content: "Check this out"`, `article: { title: "Vidrala expands its factory" }`, and `query.search: "Vidrala"`
+- **THEN** the item is kept
+
+#### Scenario: Search term only appears in the reposted content
+- **WHEN** a raw item has `content: "Sharing this"`, `repost: { content: "Big news at Vidrala" }`, and `query.search: "Vidrala"`
+- **THEN** the item is kept
+
+#### Scenario: Search term match is case-insensitive
+- **WHEN** a raw item has `content: "VIDRALA is hiring"` and `query.search: "vidrala"`
+- **THEN** the item is kept
+
 ### Requirement: Batched processing includes active terms per hour
 `processAllUsersBatched(hourUtc)` SHALL collect each scheduled user's active terms (via `getActiveTerms`), deduplicate terms globally across all users being processed in that batch, and — when any Apify-enabled user in the batch has terms to search — call `executeTermsActor` exactly once for the deduplicated set, mirroring how company and people URLs are batched.
 

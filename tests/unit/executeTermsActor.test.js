@@ -84,3 +84,86 @@ test('executeTermsActor sends searchQueries (not targetUrls) and maps results wi
     assert.equal(posts[0].queryTargetUrl, 'Vidrala');
   });
 });
+
+function mockDatasetRun(t, items) {
+  t.mock.method(global, 'fetch', async (url) => {
+    const urlStr = url.toString();
+
+    if (urlStr.endsWith('/runs')) {
+      return { ok: true, json: async () => ({ data: { id: 'run-1', defaultDatasetId: 'dataset-1' } }) };
+    }
+    if (urlStr.includes('/runs/run-1')) {
+      return { ok: true, json: async () => ({ data: { status: 'SUCCEEDED' } }) };
+    }
+    if (urlStr.includes('/datasets/dataset-1/items')) {
+      return { ok: true, json: async () => items };
+    }
+    throw new Error(`Unexpected fetch call: ${urlStr}`);
+  });
+}
+
+function baseItem(overrides = {}) {
+  return {
+    linkedinUrl: 'https://www.linkedin.com/posts/example',
+    content: '',
+    postedAt: { date: '2026-07-30T14:53:15.718Z' },
+    author: { name: 'Someone', type: 'company', publicIdentifier: 'someone' },
+    engagement: { likes: 0, comments: 0, shares: 0, reactions: [] },
+    query: { sortBy: 'date', page: 1, search: 'Vidrala', postedLimit: '24h' },
+    ...overrides,
+  };
+}
+
+test('executeTermsActor discards items where the search term does not appear anywhere relevant', async (t) => {
+  mockDatasetRun(t, [baseItem({ content: 'Totally unrelated content' })]);
+
+  await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
+    const posts = await executeTermsActor(['Vidrala'], {});
+    assert.equal(posts.length, 0);
+  });
+});
+
+test('executeTermsActor keeps items where the search term appears in content', async (t) => {
+  mockDatasetRun(t, [baseItem({ content: 'Great news from Vidrala today' })]);
+
+  await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
+    const posts = await executeTermsActor(['Vidrala'], {});
+    assert.equal(posts.length, 1);
+  });
+});
+
+test('executeTermsActor keeps items where the search term appears in article.title', async (t) => {
+  mockDatasetRun(t, [baseItem({ content: 'Check this out', article: { title: 'Vidrala expands its factory' } })]);
+
+  await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
+    const posts = await executeTermsActor(['Vidrala'], {});
+    assert.equal(posts.length, 1);
+  });
+});
+
+test('executeTermsActor keeps items where the search term appears in article.description', async (t) => {
+  mockDatasetRun(t, [baseItem({ content: 'Check this out', article: { description: 'All about Vidrala expansion' } })]);
+
+  await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
+    const posts = await executeTermsActor(['Vidrala'], {});
+    assert.equal(posts.length, 1);
+  });
+});
+
+test('executeTermsActor keeps items where the search term appears in repost.content', async (t) => {
+  mockDatasetRun(t, [baseItem({ content: 'Sharing this', repost: { content: 'Big news at Vidrala' } })]);
+
+  await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
+    const posts = await executeTermsActor(['Vidrala'], {});
+    assert.equal(posts.length, 1);
+  });
+});
+
+test('executeTermsActor matches the search term case-insensitively', async (t) => {
+  mockDatasetRun(t, [baseItem({ content: 'VIDRALA is hiring', query: { search: 'vidrala' } })]);
+
+  await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
+    const posts = await executeTermsActor(['vidrala'], {});
+    assert.equal(posts.length, 1);
+  });
+});
