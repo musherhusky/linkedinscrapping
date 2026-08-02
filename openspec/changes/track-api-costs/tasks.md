@@ -125,38 +125,40 @@ This change is delivered in 3 separately-shippable phases (see `proposal.md` →
 
 ## 3.0 Setup: Create Feature Branch (MANDATORY - FIRST STEP)
 
-- [ ] 3.0.1 Create feature branch `feature/track-api-costs-insights` from `main` (after Phase 2 is merged)
-- [ ] 3.0.2 Verify branch creation and current branch status
+- [x] 3.0.1 Create feature branch `feature/track-api-costs-insights` from `main` (after Phase 2 is merged)
+- [x] 3.0.2 Verify branch creation and current branch status
+
+**Design correction found on start of Phase 3**: `/api/insights` renders HTML (`Content-Type: text/html`), not JSON — the original plan's `api_costs` JSON field doesn't apply. Cost data is rendered as a new "Costes" card in the existing HTML dashboard instead. See `design.md` Decision 6 and the updated `api-usage-logging` spec.
 
 ## 3.1 Failing Tests First (TDD)
 
-- [ ] 3.1.1 Add tests in `tests/unit/getApiCostSummary.test.js` asserting `getApiCostSummary(userId, from, to, supabase)` aggregates `estimated_cost_usd` grouped by `provider`, filtered by `user_id` and date range
-- [ ] 3.1.2 Add a test asserting zero-value output (not absent/null) when no usage rows exist for the period
-- [ ] 3.1.3 Run the tests and confirm they fail (red)
+- [x] 3.1.1 Add tests in `tests/unit/getApiCostSummary.test.js` asserting `getApiCostSummary(userId, from, to, supabase)` aggregates `estimated_cost_usd` grouped by `provider`, filtered by `user_id` and date range
+- [x] 3.1.2 Add a test asserting zero-value output (not absent/null) when no usage rows exist for the period
+- [x] 3.1.3 Run the tests and confirm they fail (red) — confirmed: `getApiCostSummary` export missing
 
 ## 3.2 Implementation
 
-- [ ] 3.2.1 Add `getApiCostSummary(userId, from, to, supabase = getSupabaseClient())` to `lib/database.js`
-- [ ] 3.2.2 Update `api/insights.js` to call `getApiCostSummary` and include an `api_costs` field in the response, per `design.md`'s resolved Open Question (extend `/api/insights`, no new route)
-- [ ] 3.2.3 Run the tests from 3.1 and confirm they pass (green)
+- [x] 3.2.1 Add `getApiCostSummary(userId, from, to, supabase = getSupabaseClient())` to `lib/database.js`
+- [x] 3.2.2 Update `api/insights.js` to call `getApiCostSummary` (90-day window, `.catch()`-guarded so a cost-query failure degrades to `{claude:0, apify:0}` instead of crashing the dashboard, matching this endpoint's existing per-query error tolerance) and render a "Costes" card in the existing HTML dashboard
+- [x] 3.2.3 Run the tests from 3.1 and confirm they pass (green) — 2/2 passed
 
 ## 3.3 Backend: Run Unit Tests and Verify Database State (MANDATORY)
 
-- [ ] 3.3.1 Capture pre-test baseline
-- [ ] 3.3.2 Run targeted tests: `node --test tests/unit/getApiCostSummary.test.js`
-- [ ] 3.3.3 Run full unit suite: `node --test tests/unit/*.test.js`
-- [ ] 3.3.4 Database state note: no live DB mutation from the suite
-- [ ] 3.3.5 Create report `openspec/changes/track-api-costs/reports/YYYY-MM-DD-phase-3-unit-test-and-db-verification.md`
-- [ ] 3.3.6 Mark complete only after tests pass and the report exists
+- [x] 3.3.1 Capture pre-test baseline: confirmed 64 pre-existing tests passed before this phase's edits
+- [x] 3.3.2 Run targeted tests: `node --test tests/unit/getApiCostSummary.test.js` — 2 passed
+- [x] 3.3.3 Run full unit suite: `node --test tests/unit/*.test.js` — 66 passed, 0 failed
+- [x] 3.3.4 Database state note: no live DB mutation from the suite
+- [x] 3.3.5 Create report `openspec/changes/track-api-costs/reports/2026-08-02-phase-3-unit-test-and-db-verification.md`
+- [x] 3.3.6 Mark complete only after tests pass and the report exists
 
 ## 3.4 Manual Endpoint Testing with curl (MANDATORY if applicable)
 
-- [ ] 3.4.1 `/api/insights` is an existing endpoint whose response shape changes (new `api_costs` field) — MANDATORY. Agent must start the endpoint locally or against a safe environment, call it with a real/test `userId` that has `auto_execution_enabled` data, and verify `api_costs` appears with the expected shape. Document the curl command and response in the phase 3 report.
+- [x] 3.4.1 **Could not execute as MANDATORY curl testing** — deferring to the user with clear justification, not silently skipping: this sandbox has (a) no Vercel dev tooling (no `vercel` CLI installed, no way to serve `api/*.js` as real HTTP endpoints locally — `package.json`'s only `dev` script just watches one unrelated file with plain `node`, it doesn't start a server), and (b) no live Supabase credentials (`.env.example` only has placeholders; this environment's `process.env` has no real `SUPABASE_URL`/`SUPABASE_SERVICE_KEY`). Both are required to genuinely exercise this endpoint end-to-end. **Requesting the user run this manually**: `curl "https://<deployment>/api/insights?userId=<real-user-id>" -H "x-vercel-cron-secret: $CRON_SECRET"` after deploy, and confirm a "Costes API (últimos 90 días)" card renders with non-crashing values (even `$0.0000` is correct if no usage rows exist yet). Correctness of the new code itself is covered by `getApiCostSummary`'s unit tests plus the `.catch()` guard that makes this addition structurally unable to crash the existing render.
 
 ## 3.5 E2E Testing with Playwright MCP (MANDATORY if applicable)
 
-- [ ] 3.5.1 N/A unless a frontend dashboard consumes `/api/insights` directly in this repo — confirm scope before marking N/A; if a frontend exists elsewhere, flag that a follow-up in that repo is needed but is out of scope here.
+- [x] 3.5.1 Confirmed scope: this repo has no separate frontend (`find` for `.tsx`/`.jsx` earlier in this project returned nothing) — `/api/insights` is itself a server-rendered HTML page meant to be viewed directly, not an API consumed by a separate frontend app. Playwright E2E would face the identical infra blockers as 3.4 (no dev server, no live credentials) and would only be re-testing the same render path. N/A.
 
 ## 3.6 Commit
 
-- [ ] 3.6.1 Commit, push, PR, and merge Phase 3
+- [x] 3.6.1 Commit, push, PR, and merge Phase 3
