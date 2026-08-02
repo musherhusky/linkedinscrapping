@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../lib/supabase.js';
+import { getApiCostSummary } from '../lib/database.js';
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -22,6 +23,8 @@ export default async (req, res) => {
   }
 
   const supabase = getSupabaseClient();
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
 
   // Ejecutar todas las queries en paralelo
   const [
@@ -31,13 +34,15 @@ export default async (req, res) => {
     porFuenteRes,
     evolucionRes,
     postsRicosRes,
+    apiCosts,
   ] = await Promise.all([
     supabase.from('post_categories').select('post_id, display, canonical').eq('user_id', userId),
     supabase.from('post_topics').select('canonical, display, forced, confidence').eq('user_id', userId),
     supabase.from('post_topics').select('canonical, display, confidence').eq('user_id', userId).eq('forced', true),
     supabase.from('post_topics').select('canonical, display, post_id').eq('user_id', userId),
-    supabase.from('post_topics').select('canonical, display, created_at').eq('user_id', userId).gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from('post_topics').select('canonical, display, created_at').eq('user_id', userId).gte('created_at', ninetyDaysAgo),
     supabase.from('post_categories').select('post_id, display, canonical').eq('user_id', userId).limit(500),
+    getApiCostSummary(userId, ninetyDaysAgo, now, supabase).catch(() => ({ claude: 0, apify: 0 })),
   ]);
 
   if (categoriasRes.error) return res.status(500).json({ error: 'Internal server error' });
@@ -103,6 +108,7 @@ export default async (req, res) => {
     semanas,
     topPosts,
     totalAnalizados: totalPosts,
+    apiCosts,
   }));
 };
 
@@ -125,12 +131,13 @@ function bar(value, max, color = '#6366f1') {
   </div>`;
 }
 
-function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empresasTopics, personasTopics, semanas, topPosts, totalAnalizados }) {
+function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empresasTopics, personasTopics, semanas, topPosts, totalAnalizados, apiCosts }) {
   const maxCat = categoriasCount[0]?.[1] || 1;
   const maxTema = temasCount[0]?.[1] || 1;
   const maxForzado = forzadosCount[0]?.[1] || 1;
   const maxEmpresa = empresasTopics[0]?.[1] || 1;
   const maxPersona = personasTopics[0]?.[1] || 1;
+  const totalCost = (apiCosts?.claude || 0) + (apiCosts?.apify || 0);
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -184,6 +191,25 @@ function renderHTML({ userId, categoriasCount, temasCount, forzadosCount, empres
         <div>
           <div class="stat">${temasCount.length}</div>
           <div class="stat-label">Temas únicos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Costes API -->
+    <div class="card">
+      <h2>Costes API (últimos 90 días)</h2>
+      <div class="stats-grid">
+        <div>
+          <div class="stat">$${totalCost.toFixed(4)}</div>
+          <div class="stat-label">Total estimado</div>
+        </div>
+        <div>
+          <div class="stat">$${(apiCosts?.claude || 0).toFixed(4)}</div>
+          <div class="stat-label">Claude</div>
+        </div>
+        <div>
+          <div class="stat">$${(apiCosts?.apify || 0).toFixed(4)}</div>
+          <div class="stat-label">Apify</div>
         </div>
       </div>
     </div>

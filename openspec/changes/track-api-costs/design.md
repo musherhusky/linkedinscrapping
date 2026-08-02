@@ -58,6 +58,10 @@ However, `runActor` cannot simply accept a `userId` and log directly, because of
 
 **Consequence**: this is a breaking return-shape change to `executeActor`/`executePeopleActor`/`executeTermsActor`, requiring every call site to be updated (`lib/orchestrator.js`'s `processUser`, `processPeople`, `processTerms`, and `processAllUsersBatched`). This is why Apify instrumentation is its own separately-shipped change (see `proposal.md` → Delivery Plan) rather than bundled with the simpler, non-breaking Claude instrumentation.
 
+### 6. `/api/insights` renders HTML, not JSON (discovered during Phase 3)
+
+The original design assumed extending `/api/insights`'s JSON response with an `api_costs` field. In reality, `/api/insights` renders a full HTML dashboard (`Content-Type: text/html`) — there is no JSON response to extend. Cost data is surfaced as a new "Costes" card in the existing dashboard, styled consistently with the other cards (bar charts via the existing `bar()` helper), rather than a JSON field. The underlying `getApiCostSummary(userId, from, to)` query in `lib/database.js` is unchanged from the original plan — only how it's rendered differs.
+
 ## Risks / Trade-offs
 
 - **Rate staleness** → Rates are hardcoded constants; if Anthropic or Apify changes pricing, estimates drift silently. Mitigation: store the rate snapshot with each row; add a note in code to update constants when pricing changes.

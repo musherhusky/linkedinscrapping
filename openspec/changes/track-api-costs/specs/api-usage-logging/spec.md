@@ -35,15 +35,15 @@ After each Apify actor run completes, the system SHALL record the actor ID, comp
 - **THEN** the error is caught and logged without rethrowing, and the caller receives the scraped posts normally
 
 ### Requirement: API usage data is queryable by user and date range
-The system SHALL expose aggregate API usage (total tokens, total compute units, total estimated cost) per provider, filterable by `user_id` and date range, through the insights API.
+The system SHALL provide `getApiCostSummary(userId, from, to)`, which aggregates total estimated cost per provider (`claude`, `apify`) from `api_usage_logs`, filterable by `user_id` and date range. The `/api/insights` dashboard (`Content-Type: text/html` — not a JSON endpoint) SHALL render this summary as a "Costes" card alongside its existing cards.
 
-#### Scenario: Operator queries cost summary for a user
-- **WHEN** the insights endpoint is called with a valid `user_id` and optional `from`/`to` date parameters
-- **THEN** the response includes a `api_costs` section with total estimated cost broken down by provider (`claude`, `apify`) for the requested period
+#### Scenario: Aggregating cost summary for a user
+- **WHEN** `getApiCostSummary(userId, from, to)` is called for a user with usage rows in the period
+- **THEN** it returns total estimated cost broken down by provider (`claude`, `apify`) for the requested period
 
 #### Scenario: No usage data exists for the period
-- **WHEN** the insights endpoint is called for a user with no API usage in the requested period
-- **THEN** `api_costs` is returned with zero values (not absent or null)
+- **WHEN** `getApiCostSummary` is called for a user with no API usage in the requested period
+- **THEN** it returns zero values per provider (not absent or null)
 
 ### Requirement: Cost estimates use versioned rate snapshots
 Each `api_usage_logs` row SHALL store a `rate_snapshot` JSON object capturing the per-unit rates used to compute `estimated_cost_usd` at write time.
