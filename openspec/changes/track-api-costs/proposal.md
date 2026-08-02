@@ -22,7 +22,15 @@ The platform calls two paid external APIs — Anthropic (Claude) and Apify — o
 ## Impact
 
 - `lib/claude.js`: Read `message.usage` after each `client.messages.create` call and emit a usage record.
-- `lib/apify.js`: Read actor run stats from the Apify API response after each run completes and emit a usage record.
+- `lib/apify.js`: Read actor run stats from the Apify API response after each run completes and emit a usage record — covers all three actor types (`executeActor`, `executePeopleActor`, and `executeTermsActor`, added since this proposal was first written).
 - `lib/database.js`: New `saveApiUsage` function to insert into `api_usage_logs`.
 - Supabase: New `api_usage_logs` table (migration required).
 - `api/insights.js` / `api/dashboard.js`: New aggregation queries to surface cost totals.
+
+## Delivery Plan (resumed — split into 3 changes)
+
+This proposal covers the full feature, but implementation is split into three separately-shippable changes to keep each PR reviewable, matching this project's established pattern:
+
+1. **`api_usage_logs` table + `saveApiUsage` + Claude usage instrumentation** — single-call-site, one user per call, no batching complexity. Ships first.
+2. **Apify usage instrumentation** (companies, people, terms) — requires resolving batched multi-user cost attribution (see `design.md` Decision 5).
+3. **Insights API exposure** — depends on both of the above being in place.

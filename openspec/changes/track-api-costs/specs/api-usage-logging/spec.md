@@ -15,6 +15,10 @@ After each call to `analyzeBatch`, the system SHALL record the Anthropic model u
 - **WHEN** `analyzeBatch` returns successfully but inserting the usage row fails
 - **THEN** the error is caught and logged without rethrowing, and the caller receives the analysis results normally
 
+#### Scenario: Model has no verified cost rate
+- **WHEN** `analyzeBatch` completes successfully using a model absent from `CLAUDE_RATE_TABLE_PER_1K`
+- **THEN** a row is still inserted with the exact `input_tokens`/`output_tokens`, but `estimated_cost_usd = NULL` and `rate_snapshot` notes no verified rate was available — a cost is never fabricated for an unrated model
+
 ### Requirement: Log Apify actor run usage on every execution
 After each Apify actor run completes, the system SHALL record the actor ID, compute units consumed, and estimated cost in USD to `api_usage_logs`, associated with the triggering user.
 
