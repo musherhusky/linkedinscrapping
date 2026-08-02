@@ -142,8 +142,9 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Model is configurable via ANTHROPIC_MODEL_ANALYSIS (defaults to 'claude-opus-4-5')
 const message = await client.messages.create({
-  model: 'claude-opus-4-5',
+  model: getAnalysisModel(),
   max_tokens: 4096,
   system: SYSTEM_PROMPT,
   messages: [{ role: 'user', content: prompt }],
