@@ -10,7 +10,7 @@ This change is delivered in 3 separately-shippable phases (see `proposal.md` →
 ## 1.1 Database Migration
 
 - [x] 1.1.1 Create `docs/migrations/create_api_usage_logs.sql`: `api_usage_logs` table with columns `id` (UUID PK), `user_id` (UUID, references auth.users), `provider` (TEXT, CHECK IN ('claude', 'apify')), `model_or_actor` (TEXT), `input_tokens` (INTEGER, nullable), `output_tokens` (INTEGER, nullable), `compute_units` (NUMERIC, nullable), `posts_received` (INTEGER NOT NULL DEFAULT 0), `estimated_cost_usd` (NUMERIC(10,6)), `rate_snapshot` (JSONB), `created_at` (TIMESTAMPTZ NOT NULL DEFAULT now()); added an index on `(user_id, created_at)` for the Phase 3 aggregation queries
-- [ ] 1.1.2 Coordinate with the user to apply the migration against the live Supabase project (agent has no direct Supabase admin/SQL access)
+- [x] 1.1.2 Coordinate with the user to apply the migration against the live Supabase project — user confirmed applied
 
 ## 1.2 Database Layer
 
