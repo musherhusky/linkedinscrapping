@@ -25,11 +25,11 @@ All external API usage events go into one table with a `provider` discriminator 
 
 **Rationale**: Keeps the schema flat and aggregation queries uniform. Adding a third provider only requires a new row, not a new table. Alternatives considered: separate `claude_usage_logs` and `apify_usage_logs` tables — rejected because queries spanning providers require a UNION and migrations diverge.
 
-### 2. Estimated cost stored as a derived column (not computed live)
+### 2. Estimated cost stored as a derived column (not computed live), from a per-model rate table with no guessed fallback
 
-Cost in USD is calculated at write time using static rate constants (`CLAUDE_INPUT_COST_PER_1K`, `CLAUDE_OUTPUT_COST_PER_1K`, `APIFY_COST_PER_CU`) and stored as `estimated_cost_usd NUMERIC(10,6)`.
+Cost in USD is calculated at write time and stored as `estimated_cost_usd NUMERIC(10,6)`. For Claude, this is `CLAUDE_RATE_TABLE_PER_1K` in `lib/claude.js` — a lookup by exact model ID (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-4-8`, etc.), populated only with rates that can be verified at implementation time. **If the resolved model (`getAnalysisModel()`) has no entry in the table, `estimated_cost_usd` is stored as `NULL` (token counts are still recorded) and a warning is logged** — a fabricated number would be worse than an honest gap, since the entire point of this feature is accurate spend visibility. Notably, the *default* value of `getAnalysisModel()` (`claude-opus-4-5`, a legacy model) has no verified rate in the table as of this writing; only models actually configured via `ANTHROPIC_MODEL_ANALYSIS` with a known current rate (e.g. `claude-haiku-4-5`, the model actually in use in production) get a real cost estimate today.
 
-**Rationale**: Rates rarely change; storing the derived value enables fast aggregation without joins or runtime computation. The rate used is also stored (`rate_snapshot JSONB`) so audits remain accurate even after rate changes.
+**Rationale**: Rates rarely change; storing the derived value enables fast aggregation without joins or runtime computation. The rate used is also stored (`rate_snapshot JSONB`) so audits remain accurate even after rate changes — or, for unrated models, records that no rate was available at write time.
 
 ### 3. Fire-and-forget persistence (non-blocking)
 
@@ -42,6 +42,21 @@ Cost in USD is calculated at write time using static rate constants (`CLAUDE_INP
 Apify's run response (`waitData.data`) includes `usageTotalUsd` and `stats.computeUnits`. These are read after the `waitForFinish` poll in `runActor`.
 
 **Rationale**: This is the only point in the code where the completed run object is available with final stats.
+
+### 5. Terms actor coverage, and the batched multi-user attribution problem (resumed)
+
+Since this design was first written, a third Apify actor was added (`executeTermsActor`, for search-term scraping — see the `target-terms-scraping` change). All three actor functions (`executeActor`, `executePeopleActor`, `executeTermsActor`) call the same shared `runActor(actorId, token, input)`, so instrumenting at that single choke point covers all three "for free" — no per-actor-type duplication.
+
+However, `runActor` cannot simply accept a `userId` and log directly, because of how it's actually invoked:
+
+- **Legacy single-user path** (`processUser`, `processPeople`, `processTerms` in `lib/orchestrator.js`): one user, one call to `executeActor`/`executePeopleActor`/`executeTermsActor` per run. A `userId` is available at the call site.
+- **Batched path** (`processAllUsersBatched`): one Apify call covers the deduplicated URLs/terms of *all* users scheduled for that hour. There is no single `userId` at the point the actor runs — cost must be split proportionally across users *after* `distributeAndProcess` assigns posts back to each user (this was already anticipated in task 4.5 of the original plan, via `posts_received / total_posts_in_batch`).
+
+**Decision**: `runActor` does not log usage itself. Instead, `executeActor` / `executePeopleActor` / `executeTermsActor` change their return shape from a bare `Post[]` array to `{ posts: Post[], runStats: { actorId, computeUnits, usageTotalUsd } }`, so callers in both paths can access run stats without a second network call. The legacy single-user path logs immediately with its known `userId`. The batched path logs once per user after distribution, splitting `runStats` proportionally by that user's `posts_received` for that source type.
+
+**Alternative considered**: have `runActor` accept an optional `userId` and log inline when provided, leaving the batched path to log separately by some other means. Rejected — this splits the logging logic across two different code paths with two different data flows (inline vs. post-hoc), which is more error-prone than a single consistent shape change consumed uniformly by both callers.
+
+**Consequence**: this is a breaking return-shape change to `executeActor`/`executePeopleActor`/`executeTermsActor`, requiring every call site to be updated (`lib/orchestrator.js`'s `processUser`, `processPeople`, `processTerms`, and `processAllUsersBatched`). This is why Apify instrumentation is its own separately-shipped change (see `proposal.md` → Delivery Plan) rather than bundled with the simpler, non-breaking Claude instrumentation.
 
 ## Risks / Trade-offs
 
@@ -57,5 +72,6 @@ Apify's run response (`waitData.data`) includes `usageTotalUsd` and `stats.compu
 
 ## Open Questions
 
-- Should we surface costs in the existing `/api/insights` endpoint or add a dedicated `/api/costs` route? (Leaning toward extending insights for now.)
-- What Apify compute-unit rate should we use as default? (Current public rate: ~$0.25 / 1000 CU — confirm before implementation.)
+None outstanding — resolved on resume (2026-08-02):
+- **Insights route**: extend the existing `/api/insights` endpoint (not a dedicated `/api/costs` route) — no new endpoint needed, keeps cost data alongside other per-user metrics already surfaced there.
+- **Apify compute-unit rate**: not applicable as a single constant — Apify's `harvestapi` actors (used for all three: companies, people, terms) are billed `PRICE_PER_DATASET_ITEM` ($0.002/result) per the actor metadata fetched during the `target-terms-scraping` change, not a flat compute-unit rate. `APIFY_COST_PER_CU` from the original design is replaced by reading `usageTotalUsd` directly from the run response when available (Apify computes and returns actual run cost), falling back to `NULL`/logged-as-unavailable if that field is absent — no separate rate constant to keep in sync with pricing changes.
