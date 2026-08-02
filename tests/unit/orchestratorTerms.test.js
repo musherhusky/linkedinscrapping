@@ -37,6 +37,7 @@ function noopDeps(overrides = {}) {
     upsertDiscoveredProfile: async () => null,
     upsertDiscoveredProfileRelation: async () => {},
     saveApiUsage: async () => {},
+    saveApiRun: async () => 'default-run-id',
     ...overrides,
   };
 }
@@ -177,6 +178,41 @@ test('processAllUsersBatched logs proportional Apify usage cost per user for ter
   assert.ok(Math.abs(user2Usage.stats.estimatedCostUsd - 0.02) < 1e-9, 'user-2 share is 1/3 of 0.06 = 0.02');
 });
 
+test('processAllUsersBatched creates one raw run row per source type and shares its run_id across all per-user proportional shares', async () => {
+  const saveApiUsageCalls = [];
+  const saveApiRunCalls = [];
+
+  await processAllUsersBatched('10', {
+    getAllUsersForHour: async () => ['user-1', 'user-2'],
+    getUserSettings: async () => baseSettings(),
+    getUserPlan: async () => basePlan(),
+    getActiveCompanies: async () => [],
+    getActivePeople: async () => [],
+    getActiveTerms: async (userId) => (userId === 'user-1' ? ['Vidrala'] : ['AI']),
+    executeActor: async () => actorResult([]),
+    executePeopleActor: async () => actorResult([]),
+    executeTermsActor: async () => actorResult(
+      [makeTermPost('Vidrala'), makeTermPost('AI')],
+      { actorId: 'terms-actor-1', computeUnits: 0.4, usageTotalUsd: 0.06 }
+    ),
+    ...noopDeps({
+      saveApiUsage: async (userId, provider, stats) => { saveApiUsageCalls.push({ userId, stats }); },
+      saveApiRun: async (provider, stats) => { saveApiRunCalls.push({ provider, stats }); return 'batched-run-id'; },
+    }),
+  });
+
+  assert.equal(saveApiRunCalls.length, 1, 'saveApiRun must be called once for the whole term run, not once per user');
+  assert.equal(saveApiRunCalls[0].provider, 'apify');
+  assert.equal(saveApiRunCalls[0].stats.sourceType, 'term');
+  assert.equal(saveApiRunCalls[0].stats.totalItems, 2);
+  assert.equal(saveApiRunCalls[0].stats.totalCostUsd, 0.06, 'the raw run row gets the full unsplit cost');
+
+  assert.equal(saveApiUsageCalls.length, 2);
+  for (const call of saveApiUsageCalls) {
+    assert.equal(call.stats.runId, 'batched-run-id', 'every per-user share must correlate to the same run_id');
+  }
+});
+
 test('processTerms fetches active terms, runs executeTermsActor, and dispatches new posts', async () => {
   const dispatchCalls = [];
 
@@ -202,8 +238,9 @@ test('processTerms fetches active terms, runs executeTermsActor, and dispatches 
   assert.equal(result.sent, 1);
 });
 
-test('processTerms logs full (non-split) Apify usage cost for the single-user run', async () => {
+test('processTerms logs full (non-split) Apify usage cost, correlated to its own raw run row', async () => {
   const saveApiUsageCalls = [];
+  const saveApiRunCalls = [];
 
   await processTerms('user-1', {
     getUserSettings: async () => baseSettings({ send_to_hallon: true }),
@@ -215,8 +252,13 @@ test('processTerms logs full (non-split) Apify usage cost for the single-user ru
     ),
     ...noopDeps({
       saveApiUsage: async (userId, provider, stats) => { saveApiUsageCalls.push({ userId, provider, stats }); },
+      saveApiRun: async (provider, stats) => { saveApiRunCalls.push({ provider, stats }); return 'terms-run-id'; },
     }),
   });
+
+  assert.equal(saveApiRunCalls.length, 1);
+  assert.equal(saveApiRunCalls[0].stats.totalItems, 1);
+  assert.equal(saveApiRunCalls[0].stats.totalCostUsd, 0.01);
 
   assert.equal(saveApiUsageCalls.length, 1);
   assert.equal(saveApiUsageCalls[0].userId, 'user-1');
@@ -225,6 +267,7 @@ test('processTerms logs full (non-split) Apify usage cost for the single-user ru
   assert.equal(saveApiUsageCalls[0].stats.computeUnits, 0.1);
   assert.equal(saveApiUsageCalls[0].stats.estimatedCostUsd, 0.01);
   assert.equal(saveApiUsageCalls[0].stats.postsReceived, 1);
+  assert.equal(saveApiUsageCalls[0].stats.runId, 'terms-run-id');
 });
 
 test('processTerms returns early when the user has no active terms', async () => {
