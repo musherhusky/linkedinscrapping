@@ -22,6 +22,10 @@ function makeTermPost(term, overrides = {}) {
   };
 }
 
+function actorResult(posts, runStats = null) {
+  return { posts, runStats };
+}
+
 function noopDeps(overrides = {}) {
   return {
     deduplicatePosts: async (posts) => ({ newPosts: posts, duplicates: 0 }),
@@ -32,6 +36,7 @@ function noopDeps(overrides = {}) {
     insertFollowerHistory: async () => {},
     upsertDiscoveredProfile: async () => null,
     upsertDiscoveredProfileRelation: async () => {},
+    saveApiUsage: async () => {},
     ...overrides,
   };
 }
@@ -46,11 +51,11 @@ test('processAllUsersBatched calls executeTermsActor once with deduplicated term
     getActiveCompanies: async () => [],
     getActivePeople: async () => [],
     getActiveTerms: async (userId) => (userId === 'user-1' ? ['Vidrala', 'AI'] : ['Vidrala']),
-    executeActor: async () => [],
-    executePeopleActor: async () => [],
+    executeActor: async () => actorResult([]),
+    executePeopleActor: async () => actorResult([]),
     executeTermsActor: async (terms) => {
       executeTermsActorCalls.push(terms);
-      return [];
+      return actorResult([]);
     },
     ...noopDeps(),
   });
@@ -69,9 +74,9 @@ test('processAllUsersBatched does not call executeTermsActor when no user has ac
     getActiveCompanies: async () => [],
     getActivePeople: async () => [],
     getActiveTerms: async () => [],
-    executeActor: async () => [],
-    executePeopleActor: async () => [],
-    executeTermsActor: async (terms) => { executeTermsActorCalls.push(terms); return []; },
+    executeActor: async () => actorResult([]),
+    executePeopleActor: async () => actorResult([]),
+    executeTermsActor: async (terms) => { executeTermsActorCalls.push(terms); return actorResult([]); },
     ...noopDeps(),
   });
 
@@ -88,9 +93,9 @@ test('processAllUsersBatched distributes term-sourced posts to the correct track
     getActiveCompanies: async () => [],
     getActivePeople: async () => [],
     getActiveTerms: async (userId) => (userId === 'user-1' ? ['Vidrala'] : ['AI']),
-    executeActor: async () => [],
-    executePeopleActor: async () => [],
-    executeTermsActor: async () => [makeTermPost('Vidrala'), makeTermPost('AI')],
+    executeActor: async () => actorResult([]),
+    executePeopleActor: async () => actorResult([]),
+    executeTermsActor: async () => actorResult([makeTermPost('Vidrala'), makeTermPost('AI')]),
     ...noopDeps({
       processAndSendToHallon: async (posts, userId, settings, sourceType) => {
         dispatchCalls.push({ userId, sourceType, posts });
@@ -123,11 +128,11 @@ test('processAllUsersBatched does not enrich target profiles for term-sourced po
     getActiveCompanies: async () => [],
     getActivePeople: async () => [],
     getActiveTerms: async () => ['Vidrala'],
-    executeActor: async () => [],
-    executePeopleActor: async () => [],
-    executeTermsActor: async () => [makeTermPost('Vidrala', {
+    executeActor: async () => actorResult([]),
+    executePeopleActor: async () => actorResult([]),
+    executeTermsActor: async () => actorResult([makeTermPost('Vidrala', {
       author: { id: 'author-1', type: 'company', name: 'Vidrala', linkedinUrl: 'https://www.linkedin.com/company/vidrala', info: '474 followers' },
-    })],
+    })]),
     ...noopDeps({
       upsertTargetProfile: async (...args) => { upsertTargetProfileCalls.push(args); },
       insertFollowerHistory: async (...args) => { insertFollowerHistoryCalls.push(args); },
@@ -136,6 +141,40 @@ test('processAllUsersBatched does not enrich target profiles for term-sourced po
 
   assert.equal(upsertTargetProfileCalls.length, 0, 'term-sourced authors must not trigger target-profile enrichment');
   assert.equal(insertFollowerHistoryCalls.length, 0);
+});
+
+test('processAllUsersBatched logs proportional Apify usage cost per user for term posts', async () => {
+  const saveApiUsageCalls = [];
+
+  await processAllUsersBatched('10', {
+    getAllUsersForHour: async () => ['user-1', 'user-2'],
+    getUserSettings: async () => baseSettings(),
+    getUserPlan: async () => basePlan(),
+    getActiveCompanies: async () => [],
+    getActivePeople: async () => [],
+    getActiveTerms: async (userId) => (userId === 'user-1' ? ['Vidrala'] : ['AI']),
+    executeActor: async () => actorResult([]),
+    executePeopleActor: async () => actorResult([]),
+    executeTermsActor: async () => actorResult(
+      [makeTermPost('Vidrala'), makeTermPost('Vidrala'), makeTermPost('AI')],
+      { actorId: 'terms-actor-1', computeUnits: 0.4, usageTotalUsd: 0.06 }
+    ),
+    ...noopDeps({
+      saveApiUsage: async (userId, provider, stats) => { saveApiUsageCalls.push({ userId, provider, stats }); },
+    }),
+  });
+
+  const user1Usage = saveApiUsageCalls.find(c => c.userId === 'user-1' && c.stats.postsReceived === 2);
+  const user2Usage = saveApiUsageCalls.find(c => c.userId === 'user-2' && c.stats.postsReceived === 1);
+
+  assert.ok(user1Usage, 'user-1 (2 of 3 posts) must get a proportional usage row');
+  assert.equal(user1Usage.provider, 'apify');
+  assert.equal(user1Usage.stats.modelOrActor, 'terms-actor-1');
+  assert.ok(Math.abs(user1Usage.stats.estimatedCostUsd - 0.04) < 1e-9, 'user-1 share is 2/3 of 0.06 = 0.04');
+  assert.ok(Math.abs(user1Usage.stats.computeUnits - (0.4 * 2 / 3)) < 1e-9);
+
+  assert.ok(user2Usage, 'user-2 (1 of 3 posts) must get a proportional usage row');
+  assert.ok(Math.abs(user2Usage.stats.estimatedCostUsd - 0.02) < 1e-9, 'user-2 share is 1/3 of 0.06 = 0.02');
 });
 
 test('processTerms fetches active terms, runs executeTermsActor, and dispatches new posts', async () => {
@@ -147,7 +186,7 @@ test('processTerms fetches active terms, runs executeTermsActor, and dispatches 
     getActiveTerms: async () => ['Vidrala'],
     executeTermsActor: async (terms) => {
       assert.deepEqual(terms, ['Vidrala']);
-      return [makeTermPost('Vidrala')];
+      return actorResult([makeTermPost('Vidrala')], { actorId: 'terms-actor-1', computeUnits: 0.1, usageTotalUsd: 0.01 });
     },
     ...noopDeps({
       processAndSendToHallon: async (posts, userId, settings, sourceType) => {
@@ -163,6 +202,31 @@ test('processTerms fetches active terms, runs executeTermsActor, and dispatches 
   assert.equal(result.sent, 1);
 });
 
+test('processTerms logs full (non-split) Apify usage cost for the single-user run', async () => {
+  const saveApiUsageCalls = [];
+
+  await processTerms('user-1', {
+    getUserSettings: async () => baseSettings({ send_to_hallon: true }),
+    getUserPlan: async () => basePlan(),
+    getActiveTerms: async () => ['Vidrala'],
+    executeTermsActor: async () => actorResult(
+      [makeTermPost('Vidrala')],
+      { actorId: 'terms-actor-1', computeUnits: 0.1, usageTotalUsd: 0.01 }
+    ),
+    ...noopDeps({
+      saveApiUsage: async (userId, provider, stats) => { saveApiUsageCalls.push({ userId, provider, stats }); },
+    }),
+  });
+
+  assert.equal(saveApiUsageCalls.length, 1);
+  assert.equal(saveApiUsageCalls[0].userId, 'user-1');
+  assert.equal(saveApiUsageCalls[0].provider, 'apify');
+  assert.equal(saveApiUsageCalls[0].stats.modelOrActor, 'terms-actor-1');
+  assert.equal(saveApiUsageCalls[0].stats.computeUnits, 0.1);
+  assert.equal(saveApiUsageCalls[0].stats.estimatedCostUsd, 0.01);
+  assert.equal(saveApiUsageCalls[0].stats.postsReceived, 1);
+});
+
 test('processTerms returns early when the user has no active terms', async () => {
   const executeTermsActorCalls = [];
 
@@ -170,7 +234,7 @@ test('processTerms returns early when the user has no active terms', async () =>
     getUserSettings: async () => baseSettings(),
     getUserPlan: async () => basePlan(),
     getActiveTerms: async () => [],
-    executeTermsActor: async (terms) => { executeTermsActorCalls.push(terms); return []; },
+    executeTermsActor: async (terms) => { executeTermsActorCalls.push(terms); return actorResult([]); },
     ...noopDeps(),
   });
 

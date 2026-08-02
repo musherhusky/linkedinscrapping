@@ -17,6 +17,14 @@ function withEnv(vars, fn) {
   });
 }
 
+const RUN_STATUS_RESPONSE = {
+  data: {
+    status: 'SUCCEEDED',
+    usageTotalUsd: 0.042,
+    stats: { computeUnits: 0.015 },
+  },
+};
+
 test('executeTermsActor throws when APIFY_TERMS_ACTOR_ID is missing', async (t) => {
   await withEnv({ APIFY_TERMS_ACTOR_ID: undefined, APIFY_TOKEN: 'fake-token' }, async () => {
     await assert.rejects(
@@ -35,7 +43,7 @@ test('executeTermsActor throws when APIFY_TOKEN is missing', async (t) => {
   });
 });
 
-test('executeTermsActor sends searchQueries (not targetUrls) and maps results with sourceType "term"', async (t) => {
+test('executeTermsActor sends searchQueries (not targetUrls), maps results, and returns runStats', async (t) => {
   const requestBodies = [];
 
   t.mock.method(global, 'fetch', async (url, options) => {
@@ -50,7 +58,7 @@ test('executeTermsActor sends searchQueries (not targetUrls) and maps results wi
     }
 
     if (urlStr.includes('/runs/run-1')) {
-      return { ok: true, json: async () => ({ data: { status: 'SUCCEEDED' } }) };
+      return { ok: true, json: async () => (RUN_STATUS_RESPONSE) };
     }
 
     if (urlStr.includes('/datasets/dataset-1/items')) {
@@ -73,15 +81,19 @@ test('executeTermsActor sends searchQueries (not targetUrls) and maps results wi
   });
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['Vidrala'], { max_posts_per_company: 5, posted_limit: '24h' });
+    const result = await executeTermsActor(['Vidrala'], { max_posts_per_company: 5, posted_limit: '24h' });
 
     assert.equal(requestBodies.length, 1);
     assert.deepEqual(requestBodies[0].searchQueries, ['Vidrala']);
     assert.equal(requestBodies[0].targetUrls, undefined, 'input must not include targetUrls');
 
-    assert.equal(posts.length, 1);
-    assert.equal(posts[0].sourceType, 'term');
-    assert.equal(posts[0].queryTargetUrl, 'Vidrala');
+    assert.equal(result.posts.length, 1);
+    assert.equal(result.posts[0].sourceType, 'term');
+    assert.equal(result.posts[0].queryTargetUrl, 'Vidrala');
+
+    assert.equal(result.runStats.actorId, 'buIWk2uOUzTmcLsuB');
+    assert.equal(result.runStats.computeUnits, 0.015);
+    assert.equal(result.runStats.usageTotalUsd, 0.042);
   });
 });
 
@@ -93,7 +105,7 @@ function mockDatasetRun(t, items) {
       return { ok: true, json: async () => ({ data: { id: 'run-1', defaultDatasetId: 'dataset-1' } }) };
     }
     if (urlStr.includes('/runs/run-1')) {
-      return { ok: true, json: async () => ({ data: { status: 'SUCCEEDED' } }) };
+      return { ok: true, json: async () => (RUN_STATUS_RESPONSE) };
     }
     if (urlStr.includes('/datasets/dataset-1/items')) {
       return { ok: true, json: async () => items };
@@ -118,8 +130,8 @@ test('executeTermsActor discards items where the search term does not appear any
   mockDatasetRun(t, [baseItem({ content: 'Totally unrelated content' })]);
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['Vidrala'], {});
-    assert.equal(posts.length, 0);
+    const result = await executeTermsActor(['Vidrala'], {});
+    assert.equal(result.posts.length, 0);
   });
 });
 
@@ -127,8 +139,8 @@ test('executeTermsActor keeps items where the search term appears in content', a
   mockDatasetRun(t, [baseItem({ content: 'Great news from Vidrala today' })]);
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['Vidrala'], {});
-    assert.equal(posts.length, 1);
+    const result = await executeTermsActor(['Vidrala'], {});
+    assert.equal(result.posts.length, 1);
   });
 });
 
@@ -136,8 +148,8 @@ test('executeTermsActor keeps items where the search term appears in article.tit
   mockDatasetRun(t, [baseItem({ content: 'Check this out', article: { title: 'Vidrala expands its factory' } })]);
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['Vidrala'], {});
-    assert.equal(posts.length, 1);
+    const result = await executeTermsActor(['Vidrala'], {});
+    assert.equal(result.posts.length, 1);
   });
 });
 
@@ -145,8 +157,8 @@ test('executeTermsActor keeps items where the search term appears in article.des
   mockDatasetRun(t, [baseItem({ content: 'Check this out', article: { description: 'All about Vidrala expansion' } })]);
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['Vidrala'], {});
-    assert.equal(posts.length, 1);
+    const result = await executeTermsActor(['Vidrala'], {});
+    assert.equal(result.posts.length, 1);
   });
 });
 
@@ -154,8 +166,8 @@ test('executeTermsActor keeps items where the search term appears in repost.cont
   mockDatasetRun(t, [baseItem({ content: 'Sharing this', repost: { content: 'Big news at Vidrala' } })]);
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['Vidrala'], {});
-    assert.equal(posts.length, 1);
+    const result = await executeTermsActor(['Vidrala'], {});
+    assert.equal(result.posts.length, 1);
   });
 });
 
@@ -163,7 +175,7 @@ test('executeTermsActor matches the search term case-insensitively', async (t) =
   mockDatasetRun(t, [baseItem({ content: 'VIDRALA is hiring', query: { search: 'vidrala' } })]);
 
   await withEnv({ APIFY_TERMS_ACTOR_ID: 'buIWk2uOUzTmcLsuB', APIFY_TOKEN: 'fake-token' }, async () => {
-    const posts = await executeTermsActor(['vidrala'], {});
-    assert.equal(posts.length, 1);
+    const result = await executeTermsActor(['vidrala'], {});
+    assert.equal(result.posts.length, 1);
   });
 });
