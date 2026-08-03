@@ -26,4 +26,37 @@
 - Blocking issues: none
 
 ## Note on Task 1.2 (apply migration to Supabase)
-`docs/migrations/create_cron_execution_logs.sql` has been created but **not yet applied** to the real Supabase project — this is a user-confirmed step per project convention (no automated DB write access from this session). Manual curl testing against a live endpoint (Step 8) is blocked until the user applies this migration.
+`docs/migrations/create_cron_execution_logs.sql` was applied to the real Supabase project by the user (user-confirmed step, no automated DB write access from this session). Confirmed working via the Step 8 manual tests below.
+
+## Step 8 - Manual Endpoint Testing with curl (executed against production: https://linkedinscrapping.vercel.app)
+
+Executed and verified by the user after `main` was merged/deployed.
+
+### 8.2 — Trigger a batch run for an hour with no users scheduled
+```bash
+curl -s "https://linkedinscrapping.vercel.app/api/process-all-users?hour=3" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+Response: `{"success":true,"hour":3,"processed":0,"warning":"No users scheduled for hour 3"}`
+
+### 8.3 — Confirm the execution appears in /api/cron-status
+```bash
+curl -s "https://linkedinscrapping.vercel.app/api/cron-status" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+Response: HTML table containing the row from 8.2:
+```
+started_at: 2026-08-03T21:37:45.03+00:00 | hour_utc: 3 | status: no_users | users: 0 | sent: 0 | failed: 0 | duration: 909ms | error: —
+```
+
+### 8.4 — Confirm unauthorized requests are rejected
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" "https://linkedinscrapping.vercel.app/api/cron-status"
+```
+Response: `401`
+
+### 8.5 — Database state restoration
+Test row (`hour_utc = 3`, `started_at = 2026-08-03T21:37:45.03+00:00`) to be deleted from `cron_execution_logs` by the user (matches the project convention of user-confirmed DB writes).
+
+### Outcome
+- Step 8 status: PASS (8.2, 8.3, 8.4 all matched expected behavior exactly)
