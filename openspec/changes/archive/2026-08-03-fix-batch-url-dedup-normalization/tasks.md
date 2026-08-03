@@ -51,4 +51,4 @@
 
 ## 9. Commit
 
-- [ ] 9.1 Commit, push, PR, and merge
+- [x] 9.1 Commit, push, PR, and merge (PR #14, merged to main)
