@@ -6,7 +6,7 @@
 ## 1. Database Migration
 
 - [x] 1.1 Create `docs/migrations/create_api_run_logs.sql`: `api_run_logs` table (`id` UUID PK, `provider` TEXT CHECK IN ('claude','apify'), `model_or_actor` TEXT, `source_type` TEXT nullable, `input_tokens`/`output_tokens` INTEGER nullable, `compute_units` NUMERIC nullable, `total_items` INTEGER nullable, `total_cost_usd` NUMERIC(10,6) nullable, `rate_snapshot` JSONB, `created_at` TIMESTAMPTZ NOT NULL DEFAULT now()); plus `ALTER TABLE api_usage_logs ADD COLUMN run_id UUID REFERENCES api_run_logs(id) ON DELETE SET NULL` and a supporting index
-- [ ] 1.2 Coordinate with the user to apply the migration against the live Supabase project (agent has no direct Supabase admin/SQL access)
+- [x] 1.2 Coordinate with the user to apply the migration against the live Supabase project — user confirmed applied (ran in two separate statements after hitting a "multiple primary keys" error from a paste issue; resolved)
 
 ## 2. Backend: Failing Tests First (TDD) — `saveApiRun`
 

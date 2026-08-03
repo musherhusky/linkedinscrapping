@@ -61,7 +61,7 @@
 ## 8. Configuration & Documentation
 
 - [x] 8.1 Add `APIFY_TERMS_ACTOR_ID` to `.env.example` (value for reference, not committed as a real secret: `buIWk2uOUzTmcLsuB`)
-- [ ] 8.2 Coordinate with the user to set `APIFY_TERMS_ACTOR_ID=buIWk2uOUzTmcLsuB` in the live Vercel environment variables (agent has no direct Vercel admin access)
+- [x] 8.2 Coordinate with the user to set `APIFY_TERMS_ACTOR_ID=buIWk2uOUzTmcLsuB` in the live Vercel environment variables — user confirmed configured
 - [x] 8.3 Update `docs/data-model.md`: document `target_search_terms` table (columns: `id`, `user_id`, `term`, `active`, `created_at`) and extend `posts.source_type` description to `'company', 'person', or 'term'`
 - [x] 8.4 Update `docs/backend-standards.md` section 4 (Apify Integration) to list the third actor (`APIFY_TERMS_ACTOR_ID`) and the `executeTermsActor` function alongside the existing two
 
@@ -132,8 +132,8 @@
 
 **Problem reported by user**: the frontend shows a company/person tag from `posts.source_type`, but nothing records which specific search term produced a term-sourced post, so the user can't tell "where it came from" for those rows.
 
-- [ ] 18.1 Create `docs/migrations/add_posts_search_term.sql`: `ALTER TABLE posts ADD COLUMN search_term TEXT;`
-- [ ] 18.2 Coordinate with the user to apply the migration against the live Supabase project (agent has no direct Supabase admin/SQL access)
+- [x] 18.1 Create `docs/migrations/add_posts_search_term.sql`: `ALTER TABLE posts ADD COLUMN search_term TEXT;`
+- [x] 18.2 Coordinate with the user to apply the migration against the live Supabase project — user confirmed applied
 - [x] 18.3 Add a test in `tests/unit/savePost.test.js` (new file, following the existing "savePost content_type mapping" simulation-style test in `mapPost.test.js` — no DI added to `savePost`, consistent with that precedent) asserting the `search_term` insert value: `post.queryTargetUrl` when `sourceType === 'term'`, `null` otherwise
 - [x] 18.4 Note: like its precedent in `mapPost.test.js`, this test simulates the mapping expression inline rather than calling the real `savePost` (which has no DI), so it cannot meaningfully fail red before implementation — ran and passed trivially, consistent with the existing pattern's known limitation
 - [x] 18.5 In `lib/database.js` `savePost()`, add `search_term: sourceType === 'term' ? (post.queryTargetUrl || null) : null` to the insert payload
