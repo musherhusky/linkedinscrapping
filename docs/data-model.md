@@ -330,6 +330,26 @@ Tracks which tracked source URL (company or person being followed) led to each d
 
 ---
 
+## Operational Logging Tables
+
+### `cron_execution_logs`
+One row per invocation of the batch cron (`processAllUsersBatched`), independent of `user_id` — a batch spans all users sharing a scheduled hour. Lets `/api/cron-status` show execution history without relying on Vercel's function logs.
+
+| Column | Type | Description |
+|---|---|---|
+| id | UUID PK | — |
+| hour_utc | INTEGER | The batch hour parameter (UTC) |
+| status | TEXT | `'success'`, `'no_users'` (no user scheduled for that hour), or `'error'` |
+| users_processed | INTEGER | Number of users processed in this batch |
+| posts_sent | INTEGER | Total posts sent across all users/source types |
+| posts_failed | INTEGER | Total posts that failed to send |
+| duration_ms | INTEGER | Batch elapsed time in milliseconds |
+| error_message | TEXT | Error message when `status = 'error'` |
+| started_at | TIMESTAMPTZ | When the batch started |
+| created_at | TIMESTAMPTZ | When this row was written (batch end) |
+
+---
+
 ## Relationships Summary
 
 ```

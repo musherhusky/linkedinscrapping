@@ -26,6 +26,7 @@ function noopDeps(overrides = {}) {
     upsertDiscoveredProfileRelation: async () => {},
     saveApiUsage: async () => {},
     saveApiRun: async () => 'default-run-id',
+    saveCronExecution: async () => 'cron-log-id',
     ...overrides,
   };
 }

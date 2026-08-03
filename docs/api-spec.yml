@@ -243,6 +243,35 @@ paths:
         '401':
           description: Unauthorized
 
+  /api/cron-status:
+    get:
+      summary: HTML view of recent cron (batch) execution history
+      description: |
+        Returns an HTML table of the most recent processAllUsersBatched cron
+        executions (batch-level, not scoped to a userId), ordered by
+        started_at descending. Lets executions be reviewed without opening
+        Vercel's function log stream. Auth matches /api/process-all-users
+        (Authorization: Bearer or x-vercel-cron-secret header — no query
+        param support).
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            default: 30
+            maximum: 100
+          description: Number of most recent executions to show
+      responses:
+        '200':
+          description: HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized
+
   /api/insights:
     get:
       summary: HTML insights page for AI analysis results

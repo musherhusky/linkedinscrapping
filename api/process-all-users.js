@@ -1,4 +1,4 @@
-import { processAllUsersBatched } from '../lib/orchestrator.js';
+import { processAllUsersBatched, recordCronBatchFailure } from '../lib/orchestrator.js';
 
 export default async (req, res) => {
   if (!['GET', 'POST'].includes(req.method)) {
@@ -17,11 +17,13 @@ export default async (req, res) => {
   const hourParam = req.query?.hour !== undefined ? parseInt(req.query.hour, 10) : NaN;
   const hourUtc = !isNaN(hourParam) ? hourParam : new Date().getUTCHours();
 
+  const startedAt = new Date().toISOString();
   try {
     const result = await processAllUsersBatched(hourUtc);
     return res.status(200).json(result);
   } catch (error) {
     console.error(`processAllUsersBatched error for hour ${hourUtc}: ${error.message}`);
+    await recordCronBatchFailure(hourUtc, error, startedAt);
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
